@@ -54,6 +54,8 @@ class FenetreAppli(QMainWindow):
         self.arbre = None
         self.recherche_input = None
         self.dock = None
+        self.billet_course = None
+        self.billet_texte = None
 
         self.showMaximized()
 
@@ -108,17 +110,35 @@ class FenetreAppli(QMainWindow):
         bouton_recherche = QPushButton("Rechercher")
         bouton_recherche.clicked.connect(self.rechercher_produit)
 
+        bouton_ajouter = QPushButton("Ajouter à la liste")
+        bouton_ajouter.clicked.connect(self.ajouter_au_billet)
+
         layout.addWidget(self.recherche_input)
         layout.addWidget(bouton_recherche)
+        layout.addWidget(bouton_ajouter)
 
         self.arbre = QTreeWidget()
         self.arbre.setHeaderLabels(["Catégories et Produits"])
         layout.addWidget(self.arbre)
 
         self.charger_produits()
-
         self.dock.setWidget(widget_contenu)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
+
+        self.creer_billet_course()
+
+    def creer_billet_course(self):
+        if self.billet_course:
+            return  # déjà créé
+
+        self.billet_course = QDockWidget("Liste de course", self)
+        self.billet_course.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.BottomDockWidgetArea)
+
+        self.billet_texte = QTextEdit()
+        self.billet_texte.setReadOnly(True)
+        self.billet_course.setWidget(self.billet_texte)
+
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.billet_course)
 
     def charger_produits(self):
         with open("liste_produits.json", "r", encoding="utf-8") as f:
@@ -150,13 +170,25 @@ class FenetreAppli(QMainWindow):
                 else:
                     produit.setSelected(False)
 
+    def ajouter_au_billet(self):
+        if not self.billet_texte:
+            return
+
+        lignes = []
+        for i in range(self.arbre.topLevelItemCount()):
+            categorie = self.arbre.topLevelItem(i)
+            for j in range(categorie.childCount()):
+                produit = categorie.child(j)
+                if produit.checkState(0) == Qt.CheckState.Checked:
+                    lignes.append(f"- {produit.text(0)}")
+
+        if lignes:
+            self.billet_texte.append("\n".join(lignes))
+            self.billet_texte.append("")  # Pour espacement     
+
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-
-    # Appliquer un style si souhaité
-    # with open(sys.path[0] + "/fichiers_qss/Diffnes.qss", 'r') as fichier_style:
-    #     app.setStyleSheet(fichier_style.read())
-
     fenetre = FenetreAppli()
     sys.exit(app.exec())
