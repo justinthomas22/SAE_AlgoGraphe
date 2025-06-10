@@ -7,16 +7,24 @@ from PyQt6.QtCore import Qt
 
 # --- class widget: hérite de QLabel ------------------------------------------
 class Image(QLabel):
-
     def __init__(self, chemin: str):
-        '''Constructeur de la classe'''
-
-        # appel au constructeur de la classe mère
-        super().__init__() 
+        super().__init__()
         
         self.image = QPixmap(chemin)
-        self.setPixmap(self.image)
-        
+
+        # Obtenir la taille maximale autorisée par la fenêtre
+        ecran = QApplication.primaryScreen().availableGeometry()
+        largeur_max = int(ecran.width() * 0.8)
+        hauteur_max = int(ecran.height() * 0.8)
+
+        # Redimensionner l’image en conservant les proportions
+        image_redim = self.image.scaled(
+            largeur_max, hauteur_max,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
+        self.setPixmap(image_redim)
 
 
 
@@ -33,8 +41,6 @@ class FenetreAppli(QMainWindow):
         self.setGeometry(100, 100, 500, 300)
 
         # widget central
-        if not chemin is None:
-            self.affiche_image()
 
         # dock
         self.dock = QDockWidget('Bloc Notes')
@@ -79,6 +85,12 @@ class FenetreAppli(QMainWindow):
         barre_outil.addAction(action_annuler)
         barre_outil.addAction(action_retablir)
 
+        # Action pour afficher l'image
+        action_afficher_image = QAction('Afficher le plan', self)
+        action_afficher_image.triggered.connect(self.ouvrir_plan)
+        barre_outil.addAction(action_afficher_image)
+
+
         self.showMaximized()
 
 
@@ -112,6 +124,19 @@ class FenetreAppli(QMainWindow):
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
 
+    def ouvrir_plan(self):
+        """Permet de choisir parmi les fichiers un plan de magasin"""
+        fichier, _ = QFileDialog.getOpenFileName(
+            self,
+            "Ouvrir un plan",
+            directory=sys.path[0],
+            filter="Images (*.jpg *.jpeg )"
+        )
+        if fichier:
+            self.__chemin = fichier
+            self.affiche_image()
+
+
 
 
 # --- main --------------------------------------------------------------------
@@ -128,8 +153,8 @@ if __name__ == "__main__":
     #     qss = fichier_style.read()
     #     app.setStyleSheet(qss)
 
-    # # création de la fenêtre de l'application
-    fenetre = FenetreAppli(sys.path[0] + '/images/plan_accessibilite.png')
+    fenetre = FenetreAppli()
+
 
     # lancement de l'application
     sys.exit(app.exec())
