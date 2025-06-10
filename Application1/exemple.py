@@ -1,30 +1,58 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QToolBar, QStatusBar, \
                             QLabel, QTextEdit, QFileDialog, QDockWidget
-from PyQt6.QtGui import QIcon, QAction, QPixmap
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter
 from PyQt6.QtCore import Qt
 
 
 # --- class widget: hérite de QLabel ------------------------------------------
 class Image(QLabel):
-    def __init__(self, chemin: str):
+    def __init__(self, chemin: str, taille_cellule: int = 10):
         super().__init__()
+        self.chemin = chemin
+        self.taille_cellule = taille_cellule
         
-        self.image = QPixmap(chemin)
+        self.image = QPixmap(self.chemin)
 
-        # Obtenir la taille maximale autorisée par la fenêtre
+        # Utilisation d'internet afin de redimensionner l'image, en fonction
+        # de la taille de l'écran.
+
+        # Obtention de la taille maximale autorisée par l'écran
         ecran = QApplication.primaryScreen().availableGeometry()
         largeur_max = int(ecran.width() * 0.8)
         hauteur_max = int(ecran.height() * 0.8)
 
-        # Redimensionner l’image en conservant les proportions
-        image_redim = self.image.scaled(
+        # Redimensionner l’image en fonction de la taille de l'écran
+        self.image_redim = self.image.scaled(
             largeur_max, hauteur_max,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation
         )
 
-        self.setPixmap(image_redim)
+        self.setPixmap(self.image_redim)
+        self.setFixedSize(self.image_redim.size())
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+
+        # Dessin de la grille
+        painter = QPainter(self)
+        painter.setPen(Qt.GlobalColor.black)
+
+        largeur = self.image_redim.width()
+        hauteur = self.image_redim.height()
+
+        decalage = 7  
+
+        # Dessin des lignes
+        for x in range(decalage, largeur, self.taille_cellule):
+            painter.drawLine(x, 0, x, hauteur)
+
+        for y in range(0, hauteur, self.taille_cellule):
+            painter.drawLine(0, y, largeur, y)
+
+        painter.end()
+
 
 
 
@@ -36,7 +64,7 @@ class FenetreAppli(QMainWindow):
         super().__init__()
         self.__chemin = chemin
         
-        self.setWindowTitle("Votre première application à l'IUT")
+        self.setWindowTitle("Plan_magasin")
         self.setWindowIcon(QIcon(sys.path[0] + '/icones/logo_but.png'))
         self.setGeometry(100, 100, 500, 300)
 
@@ -48,6 +76,8 @@ class FenetreAppli(QMainWindow):
         self.dock.setMaximumWidth(400)
         self.text_edit = QTextEdit()
         self.dock.setWidget(self.text_edit)
+
+        
         
 
         # barre d'état
@@ -108,7 +138,7 @@ class FenetreAppli(QMainWindow):
         chemin, validation = boite.getOpenFileName(directory = sys.path[0])
         if validation:
             self.__chemin = chemin
-            self.affiche_image()
+            self.affiche_image(taille_cellule = 13)
 
 
     def enregistrer(self):
@@ -119,10 +149,12 @@ class FenetreAppli(QMainWindow):
             self.__chemin = chemin
 
         
-    def affiche_image(self):
-        self.image = Image(self.__chemin)
+    def affiche_image(self, taille_cellule=10):
+        self.image = Image(self.__chemin, taille_cellule=taille_cellule)  # Taille de cellule ajustable
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
+
+
 
     def ouvrir_plan(self):
         """Permet de choisir parmi les fichiers un plan de magasin"""
@@ -134,7 +166,7 @@ class FenetreAppli(QMainWindow):
         )
         if fichier:
             self.__chemin = fichier
-            self.affiche_image()
+            self.affiche_image(taille_cellule = 10)
 
 
 
