@@ -2,12 +2,11 @@ import sys
 import json
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar,
-    QLabel, QTextEdit, QFileDialog, QDockWidget, QTreeWidget, QTreeWidgetItem,
+    QLabel, QFileDialog, QDockWidget, QTreeWidget, QTreeWidgetItem,
     QLineEdit, QPushButton, QVBoxLayout, QWidget
 )
 from PyQt6.QtGui import QIcon, QAction, QPixmap
 from PyQt6.QtCore import Qt
-
 
 class Image(QLabel):
     def __init__(self, chemin: str):
@@ -23,7 +22,6 @@ class Image(QLabel):
         )
         self.setPixmap(image_redim)
 
-
 class FenetreAppli(QMainWindow):
     def __init__(self, chemin: str = None):
         super().__init__()
@@ -38,7 +36,6 @@ class FenetreAppli(QMainWindow):
 
         menu_bar = self.menuBar()
         menu_fichier = menu_bar.addMenu('&Fichier')
-        menu_fichier.addAction('Nouveau', self.nouveau)
         menu_fichier.addAction('Ouvrir', self.ouvrir)
         menu_fichier.addAction('Enregistrer', self.enregistrer)
         menu_fichier.addSeparator()
@@ -53,21 +50,10 @@ class FenetreAppli(QMainWindow):
 
         self.arbre = None
         self.recherche_input = None
-        self.dock = None
-        self.billet_course = None
-        self.billet_texte = None
-
+        self.billet_liste = None
         self.showMaximized()
 
-    def nouveau(self):
-        self.barre_etat.showMessage('Créer un nouveau ....', 2000)
-        boite = QFileDialog()
-        chemin, validation = boite.getOpenFileName(directory=sys.path[0])
-        if validation:
-            self.__chemin = chemin
-
     def ouvrir(self):
-        self.barre_etat.showMessage('Ouvrir un nouveau....', 2000)
         boite = QFileDialog()
         chemin, validation = boite.getOpenFileName(directory=sys.path[0])
         if validation:
@@ -75,7 +61,6 @@ class FenetreAppli(QMainWindow):
             self.affiche_image()
 
     def enregistrer(self):
-        self.barre_etat.showMessage('Enregistrer....', 2000)
         boite = QFileDialog()
         chemin, validation = boite.getSaveFileName(directory=sys.path[0])
         if validation:
@@ -88,9 +73,7 @@ class FenetreAppli(QMainWindow):
 
     def ouvrir_plan(self):
         fichier, _ = QFileDialog.getOpenFileName(
-            self,
-            "Ouvrir un plan",
-            directory=sys.path[0],
+            self, "Ouvrir un plan", directory=sys.path[0],
             filter="Images (*.jpg *.jpeg *.png *.bmp)"
         )
         if fichier:
@@ -109,7 +92,6 @@ class FenetreAppli(QMainWindow):
         self.recherche_input.setPlaceholderText("Rechercher un produit...")
         bouton_recherche = QPushButton("Rechercher")
         bouton_recherche.clicked.connect(self.rechercher_produit)
-
         bouton_ajouter = QPushButton("Ajouter à la liste")
         bouton_ajouter.clicked.connect(self.ajouter_au_billet)
 
@@ -125,42 +107,48 @@ class FenetreAppli(QMainWindow):
         self.dock.setWidget(widget_contenu)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
 
-        self.creer_billet_course()
+        self.creer_liste_course()
 
-    def creer_billet_course(self):
-        if self.billet_course:
-            return  # déjà créé
+    def creer_liste_course(self):
+        if self.billet_liste:
+            return
 
         self.billet_course = QDockWidget("Liste de course", self)
         self.billet_course.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.BottomDockWidgetArea)
 
-        self.billet_texte = QTextEdit()
-        self.billet_texte.setReadOnly(True)
-        self.billet_course.setWidget(self.billet_texte)
+        widget_billet = QWidget()
+        layout_billet = QVBoxLayout(widget_billet)
 
+        self.billet_liste = QTreeWidget()
+        self.billet_liste.setHeaderLabels(["Produit", "Supprimer"])
+        layout_billet.addWidget(self.billet_liste)
+
+        self.billet_course.setWidget(widget_billet)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.billet_course)
 
     def charger_produits(self):
-        with open("liste_produits.json", "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            chemin_fichier = "C:/GABIN/IUT/S2/SAE_graphes/Projet/SAE_AlgoGraphe/Application2/liste_produits.json"
+            with open(chemin_fichier, "r", encoding="utf-8") as f:
+                data = json.load(f)
 
-        for categorie, produits in data.items():
-            item_categorie = QTreeWidgetItem([categorie])
-            item_categorie.setFlags(item_categorie.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
-            for produit in produits:
-                item_produit = QTreeWidgetItem([produit])
-                item_produit.setCheckState(0, Qt.CheckState.Unchecked)
-                item_categorie.addChild(item_produit)
-            self.arbre.addTopLevelItem(item_categorie)
+            for categorie, produits in data.items():
+                item_categorie = QTreeWidgetItem([categorie])
+                for produit in produits:
+                    item_produit = QTreeWidgetItem([produit])
+                    item_produit.setCheckState(0, Qt.CheckState.Unchecked)
+                    item_categorie.addChild(item_produit)
+                self.arbre.addTopLevelItem(item_categorie)
+        except Exception as e:
+            print(f"Erreur lors du chargement des produits : {e}")
 
-    def rechercher_produit(self):
+    def rechercher_produit(self):  # Ajout de la méthode manquante
         terme = self.recherche_input.text().strip().lower()
         if not terme:
             return
 
         for i in range(self.arbre.topLevelItemCount()):
             categorie = self.arbre.topLevelItem(i)
-            categorie.setExpanded(False)
             for j in range(categorie.childCount()):
                 produit = categorie.child(j)
                 if terme in produit.text(0).lower():
@@ -171,22 +159,31 @@ class FenetreAppli(QMainWindow):
                     produit.setSelected(False)
 
     def ajouter_au_billet(self):
-        if not self.billet_texte:
+        if not self.billet_liste:
             return
 
-        lignes = []
         for i in range(self.arbre.topLevelItemCount()):
             categorie = self.arbre.topLevelItem(i)
             for j in range(categorie.childCount()):
                 produit = categorie.child(j)
                 if produit.checkState(0) == Qt.CheckState.Checked:
-                    lignes.append(f"- {produit.text(0)}")
+                    item = QTreeWidgetItem(self.billet_liste)
+                    item.setText(0, produit.text(0))
 
-        if lignes:
-            self.billet_texte.append("\n".join(lignes))
-            self.billet_texte.append("")  # Pour espacement     
+                    bouton_supprimer = QPushButton("Supprimer")
+                    bouton_supprimer.clicked.connect(lambda _, i=item: self.supprimer_produit(i))
+                    self.billet_liste.setItemWidget(item, 1, bouton_supprimer)
 
+                    produit.setCheckState(0, Qt.CheckState.Unchecked)  # Décocher après ajout
 
+    def supprimer_produit(self, item):
+        produit_nom = item.text(0)
+        self.billet_liste.takeTopLevelItem(self.billet_liste.indexOfTopLevelItem(item))
+
+        for i in range(self.arbre.topLevelItemCount()):
+            categorie = self.arbre.topLevelItem(i)
+            for j in range(categorie.childCount()):
+                produit = categorie.child(j)    
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
