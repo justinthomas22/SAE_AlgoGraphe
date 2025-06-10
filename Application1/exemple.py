@@ -11,18 +11,18 @@ class Image(QLabel):
         super().__init__()
         self.chemin = chemin
         self.taille_cellule = taille_cellule
-        
-        self.image = QPixmap(self.chemin)
 
         # Utilisation d'internet afin de redimensionner l'image, en fonction
         # de la taille de l'écran.
 
-        # Obtention de la taille maximale autorisée par l'écran
+        self.image = QPixmap(self.chemin)
+
+        # Obtenir la taille maximale autorisée par l'écran
         ecran = QApplication.primaryScreen().availableGeometry()
         largeur_max = int(ecran.width() * 0.8)
         hauteur_max = int(ecran.height() * 0.8)
 
-        # Redimensionner l’image en fonction de la taille de l'écran
+        # Redimensionner l’image en conservant les proportions
         self.image_redim = self.image.scaled(
             largeur_max, hauteur_max,
             Qt.AspectRatioMode.KeepAspectRatio,
@@ -33,18 +33,19 @@ class Image(QLabel):
         self.setFixedSize(self.image_redim.size())
 
     def paintEvent(self, event):
-        super().paintEvent(event)
+        super().paintEvent(event)  # Affiche l'image de base
 
-        # Dessin de la grille
+        # Dessiner la grille
         painter = QPainter(self)
         painter.setPen(Qt.GlobalColor.black)
 
         largeur = self.image_redim.width()
         hauteur = self.image_redim.height()
 
-        decalage = 7  
+        # Décalage pour les lignes verticales
+        decalage = 7  # Ajustez cette valeur pour le décalage souhaité
 
-        # Dessin des lignes
+        # Dessiner les lignes verticales et horizontales de la grille
         for x in range(decalage, largeur, self.taille_cellule):
             painter.drawLine(x, 0, x, hauteur)
 
@@ -53,6 +54,16 @@ class Image(QLabel):
 
         painter.end()
 
+    def mousePressEvent(self, event):
+        # Recupère les coordonnées au clic de la souris
+        x = event.position().x()
+        y = event.position().y()
+
+        # Donne le carré de la grille en (x et y)
+        grid_x = x // self.taille_cellule
+        grid_y = y // self.taille_cellule
+
+        print(f"Carré cliqué: ({grid_x}, {grid_y})")
 
 
 
