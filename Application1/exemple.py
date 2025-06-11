@@ -7,8 +7,8 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QToolBar, QStatusBar, \
     QLabel, QTextEdit, QFileDialog, QDockWidget, QWidget, QLineEdit, QFormLayout, \
     QDateEdit, QTreeWidgetItem, QTreeWidget, QPushButton, QVBoxLayout
 
-from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor
+from PyQt6.QtCore import Qt, QDate, QRect
 
 from odf.opendocument import OpenDocumentText
 from odf.text import H, P
@@ -49,6 +49,22 @@ class Image(QLabel):
         for y in range(0, hauteur, self.taille_cellule):
             painter.drawLine(0, y, largeur, y)
 
+        categorie = self.parent.categorie_selectionnee
+        if categorie:
+            zones = self.parent.zones_autorisees.get(categorie, [])
+            painter.setBrush(QColor(255, 255, 0, 80))  
+            
+            # Création du rectangle de couleur
+            for (x1, y1), (x2, y2) in zones:
+                rectangle = QRect(
+                    min(x1, x2) * self.taille_cellule,
+                    min(y1, y2) * self.taille_cellule,
+                    (abs(x2 - x1) + 1) * self.taille_cellule,
+                    (abs(y2 - y1) + 1) * self.taille_cellule
+                )
+                painter.drawRect(rectangle)
+
+
     def mousePressEvent(self, event):
         x = event.position().x()
         y = event.position().y()
@@ -62,26 +78,30 @@ class FenetreAppli(QMainWindow):
         super().__init__()
         self.__chemin = chemin
 
+        self.categorie_selectionnee = None
+
+
         self.setWindowTitle("Plan_magasin")
         self.setWindowIcon(QIcon(sys.path[0] + '/icones/logo_but.png'))
         self.setGeometry(100, 100, 500, 300)
 
         self.zones_autorisees = {
         "Légumes": [((19, 8), (19, 28)), ((23, 8), (25, 16))],       
-        "Poissons": [((11, 0), (20, 10))],
-        "Viandes": [((0, 11), (10, 20))],
-        "Épicerie": [((11, 11), (20, 20))],
-        "Épicerie sucrée": [((0, 0), (10, 10))],
-        "Petit déjeuner": [((0, 0), (10, 10))],
-        "Fruits": [((0, 0), (10, 10))],
-        "Rayon frais": [((0, 0), (10, 10))],
-        "Crèmerie": [((0, 0), (10, 10))],
-        "Conserves": [((0, 0), (10, 10))],
-        "Apéritifs": [((0, 0), (10, 10))],
-        "Boissons": [((0, 0), (10, 10))],
-        "Articles Maison": [((0, 0), (10, 10))],
-        "Hygiène": [((0, 0), (10, 10))],
-        "Bureau": [((0, 0), (10, 10))],        
+        "Poissons": [((2, 6), (3, 6)), ((3, 5), (4, 5)), ((4, 4), (5, 4)), ((5, 3), (6, 3)), ((6, 2), (7, 2))],
+        "Viandes": [((33, 1), (47, 1))],
+        "Épicerie": [((13, 44), (13, 51)), ((16, 44), (17, 51)), ((21, 44), (22, 51)), ((25, 44), (26, 51)), ((29, 44), (30, 51)), ((33, 33), (33, 51))],
+        "Épicerie sucrée": [((17, 33), (17, 41)), ((21, 33), (22, 41)), ((25, 33), (26, 41)), ((29, 33), (30, 41))],
+        "Petit déjeuner": [((68, 17), (80, 17)), ((68, 20), (80, 21)), ((68, 24), (80, 25)), ((68, 28), (80, 28))],
+        "Fruits": [((23, 22), (25, 28)), ((29, 8), (29, 28))],
+        "Rayon frais": [((2, 9), (3, 28)), ((7, 9), (7, 28))],
+        "Crèmerie": [((12, 14), (13, 28))],
+        "Conserves": [((68, 38), (80, 38))],
+        "Apéritifs": [((8, 44), (9, 51))],
+        "Boissons": [((7, 33), (7, 51))],
+        "Articles Maison": [((84, 23), (84, 56))],
+        "Hygiène": [((68, 41), (80, 42)), ((68, 45), (80, 46))],
+        "Bureau": [((68, 49), (80, 50)), ((68, 53), (80, 55)), ((68, 57), (83, 57))],   
+        "Animaux": [((42, 8), (42, 28)), ((45, 8), (45, 28))],       
     }
 
 
@@ -117,6 +137,8 @@ class FenetreAppli(QMainWindow):
         bouton_exporter.clicked.connect(self.exporter_produits)
 
         self.arbre = QTreeWidget()
+        self.arbre.itemSelectionChanged.connect(self.mis_a_jour)
+
         self.arbre.setHeaderLabels(["Catégories et Produits"])
 
         layout = QVBoxLayout()
@@ -151,6 +173,19 @@ class FenetreAppli(QMainWindow):
 
         self.showMaximized()
 
+    def mis_a_jour(self):
+        item = self.arbre.currentItem()
+        if item:
+            if not item.parent():
+                self.categorie_selectionnee = item.text(0)  # Catégorie sélectionnée
+            else:
+                self.categorie_selectionnee = item.parent().text(0)  # Produit sélectionné → remonter à la catégorie
+        else:
+            self.categorie_selectionnee = None
+        if hasattr(self, 'image'):
+            self.image.update()
+
+
     def est_dans_zone_autorisee(self, categorie: str, coord: tuple) -> bool:
         zones = self.zones_autorisees.get(categorie, [])
         for (x1, y1), (x2, y2) in zones:
@@ -167,7 +202,7 @@ class FenetreAppli(QMainWindow):
                 item.setData(0, Qt.ItemDataRole.UserRole, coordonnees)
                 self.barre_etat.showMessage(f"{item.text(0)} positionné en {coordonnees}", 3000)
             else:
-                self.barre_etat.showMessage(f"Zone invalide pour la catégorie {categorie}", 4000)
+                self.barre_etat.showMessage(f"Zone invalide pour la catégorie {categorie}, {coordonnees}", 4000)
         else:
             self.barre_etat.showMessage("Veuillez sélectionner un produit pour lui assigner une position", 3000)
 
@@ -210,24 +245,29 @@ class FenetreAppli(QMainWindow):
     def exporter_produits(self):
         produits_selectionnes = {}
 
-        # Parcours de chaque catégorie de l'arbre
+    # Parcours de chaque catégorie de l'arbre
         for i in range(self.arbre.topLevelItemCount()):
             categorie = self.arbre.topLevelItem(i)
             produits = []
             for j in range(categorie.childCount()):
                 produit_item = categorie.child(j)
                 if produit_item.checkState(0) == Qt.CheckState.Checked:
-                    produit = {
+                    coords = produit_item.data(0, Qt.ItemDataRole.UserRole)
+
+                    # Obliger de mettre le produit sur le plan pour qu'il soit exporté
+                    if coords is None:
+                        self.barre_etat.showMessage(f"Le produit '{produit_item.text(0)}' n'est pas positionné, il ne sera pas exporte", 4000)
+                        continue  
+                    produits.append({
                         "nom": produit_item.text(0),
-                        "coordonnées": produit_item.data(0, Qt.ItemDataRole.UserRole)
-                    }
-                    produits.append(produit)
+                        "coordonnées": coords
+                    })
             if produits:
                 produits_selectionnes[categorie.text(0)] = produits
 
         if produits_selectionnes:
             nom_magasin = self.nom_magasin_edit.text().strip()
-            
+
             # Cas ou il n'y a pas de nom de magasin
             if not nom_magasin:
                 nom_magasin = "magasin"
@@ -244,6 +284,7 @@ class FenetreAppli(QMainWindow):
             self.barre_etat.showMessage(f"Produits exportés dans {nom_fichier}", 5000)
         else:
             self.barre_etat.showMessage("Aucun produit sélectionné pour l'exportation", 5000)
+
 
 
     def nouveau(self):
