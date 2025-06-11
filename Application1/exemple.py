@@ -189,17 +189,20 @@ class FenetreAppli(QMainWindow):
             # Cas ou il n'y a pas de nom de magasin
             if not nom_magasin:
                 nom_magasin = "magasin"
-            nom_fichier = f"{nom_magasin}.json"
+            nom_fichier = f"{nom_magasin}_liste_produits.json"
 
-            with open(nom_fichier, 'w', encoding='utf-8') as f:
+            dossier = "listes_produits_entreprise"
+
+            # Permet de mettre le json dans un fichier (lien avec app2)
+            chemin_complet = os.path.join(dossier, nom_fichier)
+
+            with open(chemin_complet, 'w', encoding='utf-8') as f:
                 json.dump(produits_selectionnes, f, ensure_ascii=False, indent=4)
 
             self.barre_etat.showMessage(f"Produits exportés dans {nom_fichier}", 5000)
         else:
             self.barre_etat.showMessage("Aucun produit sélectionné pour l'exportation", 5000)
 
-
-        
 
     def nouveau(self):
         self.barre_etat.showMessage('Créer un nouveau ....', 2000)
@@ -208,11 +211,57 @@ class FenetreAppli(QMainWindow):
             self.__chemin = chemin
 
     def ouvrir(self):
-        self.barre_etat.showMessage('Ouvrir un nouveau....', 2000)
-        chemin, _ = QFileDialog.getOpenFileName(directory=sys.path[0])
-        if chemin:
-            self.__chemin = chemin
-            self.affiche_image(taille_cellule=13)
+        self.barre_etat.showMessage('Ouvrir un projet...', 2000)
+        chemin_json, _ = QFileDialog.getOpenFileName(
+            self,
+            "Ouvrir un projet",
+            directory=sys.path[0],
+            filter="Fichiers JSON (*.json)"
+        )
+        if chemin_json:
+            with open(chemin_json, "r", encoding="utf-8") as f:
+                donnees = json.load(f)
+
+            # Modifie l'appli en fonction du contenu dans le fichier
+            self.nom_projet_edit.setText(donnees.get("nom_projet", ""))
+            self.auteur_edit.setText(donnees.get("auteur", ""))
+            
+            date_str = donnees.get("date_creation", "")
+            if date_str:
+                date = QDate.fromString(date_str, "dd/MM/yyyy")
+                if date.isValid():
+                    self.date_creation_edit.setDate(date)
+            
+            self.nom_magasin_edit.setText(donnees.get("nom_magasin", ""))
+            self.adresse_magasin_edit.setText(donnees.get("adresse_magasin", ""))
+
+            # Charge le plan du magasin déja choisi précédemment
+            chemin_image = donnees.get("chemin_image")
+            if chemin_image and os.path.exists(chemin_image):
+                self.__chemin = chemin_image
+                self.affiche_image(taille_cellule=13) 
+
+            # Recharge les produits cochés
+            produits_sel = donnees.get("produits_selectionnes", {})
+
+            # Vide l'arbre avant de recharger (cas ou l'appli est déja ouvert)
+            self.arbre.clear()
+            self.charger_produits()
+
+            # Permet de sélectionner les produits sauvegardés
+            for i in range(self.arbre.topLevelItemCount()):
+                categorie = self.arbre.topLevelItem(i)
+                cat_nom = categorie.text(0)
+                if cat_nom in produits_sel:
+                    produits_coche = produits_sel[cat_nom]
+                    noms_produits = {p["nom"] for p in produits_coche}
+                    for j in range(categorie.childCount()):
+                        produit_item = categorie.child(j)
+                        if produit_item.text(0) in noms_produits:
+                            produit_item.setCheckState(0, Qt.CheckState.Checked)
+
+            self.barre_etat.showMessage(f"Projet chargé depuis {chemin_json}", 3000)
+
 
     def enregistrer(self):
         self.barre_etat.showMessage('Enregistrer....', 2000)
@@ -225,66 +274,44 @@ class FenetreAppli(QMainWindow):
         if not chemin:
             return
 
+        # Permet de récupérer les infos de l'application
         nom_projet = self.nom_projet_edit.text()
         auteur = self.auteur_edit.text()
         date_creation = self.date_creation_edit.date().toString("dd/MM/yyyy")
         nom_magasin = self.nom_magasin_edit.text()
         adresse_magasin = self.adresse_magasin_edit.text()
 
-        texte = f"""Nom du projet : {nom_projet}
-Auteur : {auteur}
-Date de création : {date_creation}
-Nom du magasin : {nom_magasin}
-Adresse du magasin : {adresse_magasin}
-"""
+        # Sauvegardes dans un JSON
+        donnees = {
+            "nom_projet": nom_projet,
+            "auteur": auteur,
+            "date_creation": date_creation,
+            "nom_magasin": nom_magasin,
+            "adresse_magasin": adresse_magasin,
+            "chemin_image": self.__chemin,
+            "produits_selectionnes": {}
+        }
 
-        # création du dossier pour stocker les images avec "_images" à la fin
-        dossier = os.path.splitext(chemin)[0] + "_image"
-        os.makedirs(dossier, exist_ok=True)
+        # Parcourir de l'arbre pour enregistrer les produits qui sont cochés
+        for i in range(self.arbre.topLevelItemCount()):
+            categorie = self.arbre.topLevelItem(i)
+            produits = []
+            for j in range(categorie.childCount()):
+                produit_item = categorie.child(j)
+                if produit_item.checkState(0) == Qt.CheckState.Checked:
+                    produit = {
+                        "nom": produit_item.text(0),
+                        "coordonnees": produit_item.data(0, Qt.ItemDataRole.UserRole)
+                    }
+                    produits.append(produit)
+            if produits:
+                donnees["produits_selectionnes"][categorie.text(0)] = produits
 
-        # copie de l'image chargé au début pour la mettre dans le dossier créer au dessus
-        if self.__chemin and os.path.exists(self.__chemin):
-            shutil.copy(self.__chemin, dossier)
+        chemin_json = os.path.splitext(chemin)[0] + ".json"
+        with open(chemin_json, "w", encoding="utf-8") as f_json:
+            json.dump(donnees, f_json, ensure_ascii=False, indent=4)
 
-        if chemin.endswith(".odt"):
-            doc = OpenDocumentText()
-            doc.text.addElement(H(outlinelevel=1, text="Informations du Projet"))
-            for ligne in texte.strip().split("\n"):
-                doc.text.addElement(P(text=ligne))
-            doc.save(chemin)
-            self.barre_etat.showMessage(f"Projet enregistré en ODT : {chemin}", 3000)
-
-        elif chemin.endswith(".pdf"):
-            c = canvas.Canvas(chemin, pagesize=A4)
-            width, height = A4
-            y = height - 50
-            for ligne in texte.strip().split("\n"):
-                c.drawString(50, y, ligne)
-                y -= 20
-
-            dossier = os.path.splitext(chemin)[0] + "_image"
-            os.makedirs(dossier, exist_ok=True)
-            img_dest = None
-            if self.__chemin and os.path.exists(self.__chemin):
-                try:
-                    img_dest = os.path.join(dossier, os.path.basename(self.__chemin))
-                    shutil.copy(self.__chemin, img_dest)
-                    max_width = 400
-                    max_height = 300
-                    pix = QPixmap(img_dest)
-                    img_width = pix.width()
-                    img_height = pix.height()
-
-                    ratio = min(max_width / img_width, max_height / img_height)
-                    w = img_width * ratio
-                    h = img_height * ratio
-
-                    c.drawImage(img_dest, 50, y - h - 10, width=w, height=h, preserveAspectRatio=True, mask='auto')
-                except Exception as e:
-                    print("Erreur image dans PDF :", e)
-
-            c.save()
-            self.barre_etat.showMessage(f"Projet enregistré en PDF : {chemin}", 3000)
+        self.barre_etat.showMessage(f"Données sauvegardées dans {chemin_json}", 3000)
 
 
     def affiche_image(self, taille_cellule=10):
