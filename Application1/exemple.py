@@ -1,8 +1,9 @@
-import sys
+import sys, os
 from PyQt6.QtWidgets import QApplication, QMainWindow, QToolBar, QStatusBar, \
                             QLabel, QTextEdit, QFileDialog, QDockWidget, QWidget, QLineEdit, QFormLayout, QDateEdit
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter
 from PyQt6.QtCore import Qt, QDate
+import odf
 
 # --- class widget: hérite de QLabel ------------------------------------------
 class Image(QLabel):
@@ -147,7 +148,53 @@ class FenetreAppli(QMainWindow):
         chemin, validation = boite.getOpenFileName(directory = sys.path[0])
         if validation:
             self.__chemin = chemin
-            self.affiche_image(taille_cellule = 13)
+            extension = os.path.splitext(chemin)[1].lower() #Séparation de l'extension
+            if extension in [".jpg", ".jpeg", ".png"]:
+                self.affiche_image(taille_cellule = 13)
+            elif extension == ".pdf":
+                self.affiche_pdf()
+            elif extension == ".odt":
+                self.affiche_odt()
+            else:
+                self.barre_etat.showMessage("Format de fichier non supporté.", 3000)
+                
+        try: 
+            texte = ""
+
+            if extension == ".pdf":
+                import fitz  # Installer l'extension PyMuPDF
+                doc = fitz.open(self.__chemin)
+                texte = "\n".join(page.get_text() for page in doc)
+
+            elif extension == ".odt":
+                from odf.opendocument import load
+                from odf.text import P
+                doc = load(self.__chemin)
+                for element in doc.getElementsByType(P):
+                    texte += element.firstChild.data + "\n" if element.firstChild else ""
+
+            donnees = {} # Extraire les champs
+            for ligne in texte.splitlines():
+                if ":" in ligne:
+                    cle, valeur = ligne.split(":", 1)
+                    donnees[cle.strip().lower()] = valeur.strip()
+
+            # Mise à jour des champs du dock
+            self.nom_projet_edit.setText(donnees.get("nom_projet", ""))
+            self.auteur_edit.setText(donnees.get("auteur", ""))
+            date_str = donnees.get("date de création", "")
+            try:
+                date_qdate = QDate.fromString(date_str, "dd-MM-yyyy")
+                if date_qdate.isValid():
+                    self.date_creation_edit.setDate(date_qdate)
+            except:
+                pass
+            self.nom_magasin_edit.setText(donnees.get("nom magasin", ""))
+            self.adresse_magasin_edit.setText(donnees.get("adresse magasin", ""))
+
+            self.dock.setVisible(True)
+        except Exception as e:
+            self.barre_etat.showMessage(f"Erreur d'ouverture : {e}", 3000)
 
     def enregistrer(self):
         self.barre_etat.showMessage('Enregistrer....', 2000 )
@@ -162,6 +209,32 @@ class FenetreAppli(QMainWindow):
         self.setCentralWidget(self.image)
         self.dock.setVisible(True)  # Afficher le dock lorsque l'image est chargée
 
+    def affiche_pdf(self):
+        import fitz  # pip install pymupdf
+        doc = fitz.open(self.__chemin)
+        texte = "\n\n".join(page.get_text() for page in doc)
+
+        zone_texte = QTextEdit()
+        zone_texte.setText(texte)
+        zone_texte.setReadOnly(True)
+        self.setCentralWidget(zone_texte)
+        self.dock.setVisible(True)
+    
+    def affiche_odt(self):
+        from odf.opendocument import load
+        from odf.text import P
+        doc = load(self.__chemin)
+        texte = ""
+
+        for element in doc.getElementsByType(P):
+            texte += str(element) + "\n"
+
+        zone_texte = QTextEdit()
+        zone_texte.setText(texte)
+        zone_texte.setReadOnly(True)
+        self.setCentralWidget(zone_texte)
+        self.dock.setVisible(True)
+        
     def ouvrir_plan(self):
         """Permet de choisir parmi les fichiers un plan de magasin"""
         fichier, _ = QFileDialog.getOpenFileName(
