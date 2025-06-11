@@ -1,8 +1,12 @@
 import sys
 import os
 import shutil
+import json
+
 from PyQt6.QtWidgets import QApplication, QMainWindow, QToolBar, QStatusBar, \
-    QLabel, QFileDialog, QDockWidget, QWidget, QLineEdit, QFormLayout, QDateEdit
+    QLabel, QTextEdit, QFileDialog, QDockWidget, QWidget, QLineEdit, QFormLayout, \
+    QDateEdit, QTreeWidgetItem, QTreeWidget, QPushButton, QVBoxLayout
+
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter
 from PyQt6.QtCore import Qt, QDate
 
@@ -82,7 +86,29 @@ class FenetreAppli(QMainWindow):
         self.form_layout.addRow('Adresse du Magasin :', self.adresse_magasin_edit)
 
         self.form_widget.setLayout(self.form_layout)
-        self.dock.setWidget(self.form_widget)
+
+        self.recherche_input = QLineEdit()
+        self.recherche_input.setPlaceholderText("Rechercher un produit...")
+        bouton_recherche = QPushButton("Rechercher")
+        bouton_recherche.clicked.connect(self.rechercher_produit)
+
+        bouton_exporter = QPushButton("Exporter")
+        bouton_exporter.clicked.connect(self.exporter_produits)
+
+        self.arbre = QTreeWidget()
+        self.arbre.setHeaderLabels(["Catégories et Produits"])
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.form_widget)
+        layout.addWidget(self.recherche_input)
+        layout.addWidget(bouton_recherche)
+        layout.addWidget(self.arbre)
+        layout.addWidget(bouton_exporter)
+
+        container = QWidget()
+        container.setLayout(layout)
+        self.dock.setWidget(container)
+
 
         self.barre_etat = QStatusBar()
         self.setStatusBar(self.barre_etat)
@@ -104,6 +130,80 @@ class FenetreAppli(QMainWindow):
 
         self.showMaximized()
 
+    def charger_produits(self):
+        chemin_fichier = "C:/Users/Utilisateur.G650-09/Documents/BUT1/Semestre2/SAE_AlgoGraphe/SAE_AlgoGraphe/Application1/liste_produit.json"
+        with open(chemin_fichier, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        for categorie, produits in data.items():
+            
+            # Permet de faire un genre de sous menu
+            item_categorie = QTreeWidgetItem([categorie])
+            for produit in produits:
+                item_produit = QTreeWidgetItem([produit["nom"]])
+                item_produit.setCheckState(0, Qt.CheckState.Unchecked)
+                item_produit.setData(0, Qt.ItemDataRole.UserRole, produit["coordonnées"])
+                item_categorie.addChild(item_produit)
+            self.arbre.addTopLevelItem(item_categorie)
+
+
+    def rechercher_produit(self):
+        terme = self.recherche_input.text().strip().lower()
+        # N'ouvre pas de menus si il n'y a rien
+        if not terme:
+            return
+        
+        #Utilisation d'internet 
+        for i in range(self.arbre.topLevelItemCount()):
+            categorie = self.arbre.topLevelItem(i)
+            for j in range(categorie.childCount()):
+                produit = categorie.child(j)
+                if terme in produit.text(0).lower():
+                    self.arbre.scrollToItem(produit)
+                    produit.setSelected(True)
+                    categorie.setExpanded(True)
+                else:
+                    produit.setSelected(False)
+
+    def exporter_produits(self):
+        produits_selectionnes = {}
+
+        # Parcours de chaque catégorie de l'arbre
+        for i in range(self.arbre.topLevelItemCount()):
+            categorie = self.arbre.topLevelItem(i)
+            produits = []
+            for j in range(categorie.childCount()):
+                produit_item = categorie.child(j)
+                if produit_item.checkState(0) == Qt.CheckState.Checked:
+                    produit = {
+                        "nom": produit_item.text(0),
+                        "coordonnées": produit_item.data(0, Qt.ItemDataRole.UserRole)
+                    }
+                    produits.append(produit)
+            if produits:
+                produits_selectionnes[categorie.text(0)] = produits
+
+        if produits_selectionnes:
+            nom_magasin = self.nom_magasin_edit.text().strip()
+            
+            # Cas ou il n'y a pas de nom de magasin
+            if not nom_magasin:
+                nom_magasin = "magasin"
+            nom_fichier = f"{nom_magasin}_liste_produits.json"
+
+            dossier = "listes_produits_entreprise"
+
+            # Permet de mettre le json dans un fichier (lien avec app2)
+            chemin_complet = os.path.join(dossier, nom_fichier)
+
+            with open(chemin_complet, 'w', encoding='utf-8') as f:
+                json.dump(produits_selectionnes, f, ensure_ascii=False, indent=4)
+
+            self.barre_etat.showMessage(f"Produits exportés dans {nom_fichier}", 5000)
+        else:
+            self.barre_etat.showMessage("Aucun produit sélectionné pour l'exportation", 5000)
+
+
     def nouveau(self):
         self.barre_etat.showMessage('Créer un nouveau ....', 2000)
         chemin, _ = QFileDialog.getOpenFileName(directory=sys.path[0])
@@ -111,11 +211,57 @@ class FenetreAppli(QMainWindow):
             self.__chemin = chemin
 
     def ouvrir(self):
-        self.barre_etat.showMessage('Ouvrir un nouveau....', 2000)
-        chemin, _ = QFileDialog.getOpenFileName(directory=sys.path[0])
-        if chemin:
-            self.__chemin = chemin
-            self.affiche_image(taille_cellule=13)
+        self.barre_etat.showMessage('Ouvrir un projet...', 2000)
+        chemin_json, _ = QFileDialog.getOpenFileName(
+            self,
+            "Ouvrir un projet",
+            directory=sys.path[0],
+            filter="Fichiers JSON (*.json)"
+        )
+        if chemin_json:
+            with open(chemin_json, "r", encoding="utf-8") as f:
+                donnees = json.load(f)
+
+            # Modifie l'appli en fonction du contenu dans le fichier
+            self.nom_projet_edit.setText(donnees.get("nom_projet", ""))
+            self.auteur_edit.setText(donnees.get("auteur", ""))
+            
+            date_str = donnees.get("date_creation", "")
+            if date_str:
+                date = QDate.fromString(date_str, "dd/MM/yyyy")
+                if date.isValid():
+                    self.date_creation_edit.setDate(date)
+            
+            self.nom_magasin_edit.setText(donnees.get("nom_magasin", ""))
+            self.adresse_magasin_edit.setText(donnees.get("adresse_magasin", ""))
+
+            # Charge le plan du magasin déja choisi précédemment
+            chemin_image = donnees.get("chemin_image")
+            if chemin_image and os.path.exists(chemin_image):
+                self.__chemin = chemin_image
+                self.affiche_image(taille_cellule=13) 
+
+            # Recharge les produits cochés
+            produits_sel = donnees.get("produits_selectionnes", {})
+
+            # Vide l'arbre avant de recharger (cas ou l'appli est déja ouvert)
+            self.arbre.clear()
+            self.charger_produits()
+
+            # Permet de sélectionner les produits sauvegardés
+            for i in range(self.arbre.topLevelItemCount()):
+                categorie = self.arbre.topLevelItem(i)
+                cat_nom = categorie.text(0)
+                if cat_nom in produits_sel:
+                    produits_coche = produits_sel[cat_nom]
+                    noms_produits = {p["nom"] for p in produits_coche}
+                    for j in range(categorie.childCount()):
+                        produit_item = categorie.child(j)
+                        if produit_item.text(0) in noms_produits:
+                            produit_item.setCheckState(0, Qt.CheckState.Checked)
+
+            self.barre_etat.showMessage(f"Projet chargé depuis {chemin_json}", 3000)
+
 
     def enregistrer(self):
         self.barre_etat.showMessage('Enregistrer....', 2000)
@@ -128,73 +274,53 @@ class FenetreAppli(QMainWindow):
         if not chemin:
             return
 
+        # Permet de récupérer les infos de l'application
         nom_projet = self.nom_projet_edit.text()
         auteur = self.auteur_edit.text()
         date_creation = self.date_creation_edit.date().toString("dd/MM/yyyy")
         nom_magasin = self.nom_magasin_edit.text()
         adresse_magasin = self.adresse_magasin_edit.text()
 
-        texte = f"""Nom du projet : {nom_projet}
-Auteur : {auteur}
-Date de création : {date_creation}
-Nom du magasin : {nom_magasin}
-Adresse du magasin : {adresse_magasin}
-"""
+        # Sauvegardes dans un JSON
+        donnees = {
+            "nom_projet": nom_projet,
+            "auteur": auteur,
+            "date_creation": date_creation,
+            "nom_magasin": nom_magasin,
+            "adresse_magasin": adresse_magasin,
+            "chemin_image": self.__chemin,
+            "produits_selectionnes": {}
+        }
 
-        # création du dossier pour stocker les images avec "_images" à la fin
-        dossier = os.path.splitext(chemin)[0] + "_image"
-        os.makedirs(dossier, exist_ok=True)
+        # Parcourir de l'arbre pour enregistrer les produits qui sont cochés
+        for i in range(self.arbre.topLevelItemCount()):
+            categorie = self.arbre.topLevelItem(i)
+            produits = []
+            for j in range(categorie.childCount()):
+                produit_item = categorie.child(j)
+                if produit_item.checkState(0) == Qt.CheckState.Checked:
+                    produit = {
+                        "nom": produit_item.text(0),
+                        "coordonnees": produit_item.data(0, Qt.ItemDataRole.UserRole)
+                    }
+                    produits.append(produit)
+            if produits:
+                donnees["produits_selectionnes"][categorie.text(0)] = produits
 
-        # copie de l'image chargé au début pour la mettre dans le dossier créer au dessus
-        if self.__chemin and os.path.exists(self.__chemin):
-            shutil.copy(self.__chemin, dossier)
+        chemin_json = os.path.splitext(chemin)[0] + ".json"
+        with open(chemin_json, "w", encoding="utf-8") as f_json:
+            json.dump(donnees, f_json, ensure_ascii=False, indent=4)
 
-        if chemin.endswith(".odt"):
-            doc = OpenDocumentText()
-            doc.text.addElement(H(outlinelevel=1, text="Informations du Projet"))
-            for ligne in texte.strip().split("\n"):
-                doc.text.addElement(P(text=ligne))
-            doc.save(chemin)
-            self.barre_etat.showMessage(f"Projet enregistré en ODT : {chemin}", 3000)
-
-        elif chemin.endswith(".pdf"):
-            c = canvas.Canvas(chemin, pagesize=A4)
-            width, height = A4
-            y = height - 50
-            for ligne in texte.strip().split("\n"):
-                c.drawString(50, y, ligne)
-                y -= 20
-
-            dossier = os.path.splitext(chemin)[0] + "_image"
-            os.makedirs(dossier, exist_ok=True)
-            img_dest = None
-            if self.__chemin and os.path.exists(self.__chemin):
-                try:
-                    img_dest = os.path.join(dossier, os.path.basename(self.__chemin))
-                    shutil.copy(self.__chemin, img_dest)
-                    max_width = 400
-                    max_height = 300
-                    pix = QPixmap(img_dest)
-                    img_width = pix.width()
-                    img_height = pix.height()
-
-                    ratio = min(max_width / img_width, max_height / img_height)
-                    w = img_width * ratio
-                    h = img_height * ratio
-
-                    c.drawImage(img_dest, 50, y - h - 10, width=w, height=h, preserveAspectRatio=True, mask='auto')
-                except Exception as e:
-                    print("Erreur image dans PDF :", e)
-
-            c.save()
-            self.barre_etat.showMessage(f"Projet enregistré en PDF : {chemin}", 3000)
+        self.barre_etat.showMessage(f"Données sauvegardées dans {chemin_json}", 3000)
 
 
     def affiche_image(self, taille_cellule=10):
         self.image = Image(self.__chemin, taille_cellule=taille_cellule)
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
-        self.dock.setVisible(True)
+        
+        self.dock.setVisible(True)  # Afficher le dock lorsque l'image est chargée
+        self.charger_produits()
 
     def ouvrir_plan(self):
         fichier, _ = QFileDialog.getOpenFileName(

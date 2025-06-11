@@ -3,10 +3,11 @@ import json
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar,
     QLabel, QFileDialog, QDockWidget, QTreeWidget, QTreeWidgetItem,
-    QLineEdit, QPushButton, QVBoxLayout, QWidget
+    QLineEdit, QPushButton, QVBoxLayout, QWidget, QMessageBox
 )
 from PyQt6.QtGui import QIcon, QAction, QPixmap
 from PyQt6.QtCore import Qt
+
 
 class Image(QLabel):
     def __init__(self, chemin: str):
@@ -21,6 +22,7 @@ class Image(QLabel):
             Qt.TransformationMode.SmoothTransformation
         )
         self.setPixmap(image_redim)
+
 
 class FenetreAppli(QMainWindow):
     def __init__(self, chemin: str = None):
@@ -44,9 +46,9 @@ class FenetreAppli(QMainWindow):
         barre_outil = QToolBar('Principaux outils')
         self.addToolBar(barre_outil)
 
-        action_afficher_image = QAction('Afficher le plan', self)
-        action_afficher_image.triggered.connect(self.ouvrir_plan)
-        barre_outil.addAction(action_afficher_image)
+        action_rechercher_magasin = QAction('Rechercher un magasin', self)
+        action_rechercher_magasin.triggered.connect(self.demander_nom_magasin)
+        barre_outil.addAction(action_rechercher_magasin)
 
         self.arbre = None
         self.recherche_input = None
@@ -71,15 +73,76 @@ class FenetreAppli(QMainWindow):
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
 
-    def ouvrir_plan(self):
-        fichier, _ = QFileDialog.getOpenFileName(
-            self, "Ouvrir un plan", directory=sys.path[0],
-            filter="Images (*.jpg *.jpeg *.png *.bmp)"
+    def demander_nom_magasin(self):
+        self.voile = QWidget(self)
+        self.voile.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
+        self.voile.setGeometry(self.rect())
+        self.voile.show()
+
+        self.popup = QWidget(self.voile)
+        self.popup.setFixedSize(400, 150)
+        self.popup.move(
+            self.width() // 2 - 200,
+            self.height() // 2 - 75
         )
-        if fichier:
-            self.__chemin = fichier
-            self.affiche_image()
-            self.creer_dock_liste()
+        self.popup.setStyleSheet("background-color: white; border: 2px solid black;")
+
+        layout = QVBoxLayout(self.popup)
+
+        self.nom_input = QLineEdit()
+        self.nom_input.setPlaceholderText("Entrez le nom du magasin...")
+        self.nom_input.setStyleSheet("font-size: 18px; padding: 10px;")
+        layout.addWidget(self.nom_input)
+
+        bouton_valider = QPushButton("Valider")
+        bouton_valider.clicked.connect(lambda: self.traiter_recherche_magasin(self.nom_input.text()))
+        layout.addWidget(bouton_valider)
+
+        bouton_annuler = QPushButton("Annuler")
+        bouton_annuler.clicked.connect(self.fermer_popup)
+        layout.addWidget(bouton_annuler)
+
+        self.popup.show()
+
+    def fermer_popup(self):
+        self.voile.close()
+        self.popup.close()
+
+    def traiter_recherche_magasin(self, nom_magasin):
+        if not nom_magasin.strip():
+            return
+
+        fichier = f"{nom_magasin.strip()}_liste_produits.json"
+        chemin_complet = f"../Application1/listes_produits_entreprise/{fichier}"
+
+        try:
+            with open(chemin_complet, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                "Magasin introuvable",
+                f"Le magasin '{nom_magasin}' n'existe pas. Veuillez réesayer"
+            )
+            return  # Ne ferme pas la popup
+
+        # Le fichier a été chargé avec succès, on ferme la popup
+        self.voile.close()
+        self.popup.close()
+
+        self.creer_dock_liste()
+
+        self.arbre.clear()
+        for categorie, produits in data.items():
+            item_categorie = QTreeWidgetItem([categorie])
+            for produit in produits:
+                item_produit = QTreeWidgetItem([produit])
+                item_produit.setCheckState(0, Qt.CheckState.Unchecked)
+                item_categorie.addChild(item_produit)
+            self.arbre.addTopLevelItem(item_categorie)
+
+        self.__chemin = "images/plan.jpg"
+        self.affiche_image()
 
     def creer_dock_liste(self):
         self.dock = QDockWidget("Liste des produits", self)
@@ -103,7 +166,6 @@ class FenetreAppli(QMainWindow):
         self.arbre.setHeaderLabels(["Catégories et Produits"])
         layout.addWidget(self.arbre)
 
-        self.charger_produits()
         self.dock.setWidget(widget_contenu)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
 
@@ -126,23 +188,7 @@ class FenetreAppli(QMainWindow):
         self.billet_course.setWidget(widget_billet)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.billet_course)
 
-    def charger_produits(self):
-        try:
-            chemin_fichier = "C:/GABIN/IUT/S2/SAE_graphes/Projet/SAE_AlgoGraphe/Application2/liste_produits.json"
-            with open(chemin_fichier, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            for categorie, produits in data.items():
-                item_categorie = QTreeWidgetItem([categorie])
-                for produit in produits:
-                    item_produit = QTreeWidgetItem([produit])
-                    item_produit.setCheckState(0, Qt.CheckState.Unchecked)
-                    item_categorie.addChild(item_produit)
-                self.arbre.addTopLevelItem(item_categorie)
-        except Exception as e:
-            print(f"Erreur lors du chargement des produits : {e}")
-
-    def rechercher_produit(self):  # Ajout de la méthode manquante
+    def rechercher_produit(self):
         terme = self.recherche_input.text().strip().lower()
         if not terme:
             return
@@ -174,16 +220,11 @@ class FenetreAppli(QMainWindow):
                     bouton_supprimer.clicked.connect(lambda _, i=item: self.supprimer_produit(i))
                     self.billet_liste.setItemWidget(item, 1, bouton_supprimer)
 
-                    produit.setCheckState(0, Qt.CheckState.Unchecked)  # Décocher après ajout
+                    produit.setCheckState(0, Qt.CheckState.Unchecked)
 
     def supprimer_produit(self, item):
-        produit_nom = item.text(0)
         self.billet_liste.takeTopLevelItem(self.billet_liste.indexOfTopLevelItem(item))
 
-        for i in range(self.arbre.topLevelItemCount()):
-            categorie = self.arbre.topLevelItem(i)
-            for j in range(categorie.childCount()):
-                produit = categorie.child(j)    
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
