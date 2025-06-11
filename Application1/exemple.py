@@ -16,8 +16,9 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
 class Image(QLabel):
-    def __init__(self, chemin: str, taille_cellule: int = 10):
-        super().__init__()
+    def __init__(self, chemin: str, parent, taille_cellule: int = 10):
+        super().__init__(parent)
+        self.parent = parent
         self.chemin = chemin
         self.taille_cellule = taille_cellule
 
@@ -51,9 +52,10 @@ class Image(QLabel):
     def mousePressEvent(self, event):
         x = event.position().x()
         y = event.position().y()
-        grid_x = x // self.taille_cellule
-        grid_y = y // self.taille_cellule
-        print(f"Carré cliqué: ({grid_x}, {grid_y})")
+        grid_x = int(x) // self.taille_cellule
+        grid_y = int(y) // self.taille_cellule
+        self.parent.attribuer_position_produit((grid_x, grid_y))
+
 
 class FenetreAppli(QMainWindow):
     def __init__(self, chemin: str = None):
@@ -63,6 +65,25 @@ class FenetreAppli(QMainWindow):
         self.setWindowTitle("Plan_magasin")
         self.setWindowIcon(QIcon(sys.path[0] + '/icones/logo_but.png'))
         self.setGeometry(100, 100, 500, 300)
+
+        self.zones_autorisees = {
+        "Légumes": [((19, 8), (19, 28)), ((23, 8), (25, 16))],       
+        "Poissons": [((11, 0), (20, 10))],
+        "Viandes": [((0, 11), (10, 20))],
+        "Épicerie": [((11, 11), (20, 20))],
+        "Épicerie sucrée": [((0, 0), (10, 10))],
+        "Petit déjeuner": [((0, 0), (10, 10))],
+        "Fruits": [((0, 0), (10, 10))],
+        "Rayon frais": [((0, 0), (10, 10))],
+        "Crèmerie": [((0, 0), (10, 10))],
+        "Conserves": [((0, 0), (10, 10))],
+        "Apéritifs": [((0, 0), (10, 10))],
+        "Boissons": [((0, 0), (10, 10))],
+        "Articles Maison": [((0, 0), (10, 10))],
+        "Hygiène": [((0, 0), (10, 10))],
+        "Bureau": [((0, 0), (10, 10))],        
+    }
+
 
         self.dock = QDockWidget('Nouveau Projet', self)
         self.dock.setMinimumWidth(20)
@@ -130,6 +151,27 @@ class FenetreAppli(QMainWindow):
 
         self.showMaximized()
 
+    def est_dans_zone_autorisee(self, categorie: str, coord: tuple) -> bool:
+        zones = self.zones_autorisees.get(categorie, [])
+        for (x1, y1), (x2, y2) in zones:
+            if x1 <= coord[0] <= x2 and y1 <= coord[1] <= y2:
+                return True
+        return False
+
+
+    def attribuer_position_produit(self, coordonnees):
+        item = self.arbre.currentItem()
+        if item and item.parent():  # S'assure que ce n'est pas une catégorie
+            categorie = item.parent().text(0)
+            if self.est_dans_zone_autorisee(categorie, coordonnees):
+                item.setData(0, Qt.ItemDataRole.UserRole, coordonnees)
+                self.barre_etat.showMessage(f"{item.text(0)} positionné en {coordonnees}", 3000)
+            else:
+                self.barre_etat.showMessage(f"Zone invalide pour la catégorie {categorie}", 4000)
+        else:
+            self.barre_etat.showMessage("Veuillez sélectionner un produit pour lui assigner une position", 3000)
+
+
     def charger_produits(self):
         chemin_fichier = "C:/Users/Utilisateur.G650-09/Documents/BUT1/Semestre2/SAE_AlgoGraphe/SAE_AlgoGraphe/Application1/liste_produit.json"
         with open(chemin_fichier, "r", encoding="utf-8") as f:
@@ -142,7 +184,7 @@ class FenetreAppli(QMainWindow):
             for produit in produits:
                 item_produit = QTreeWidgetItem([produit["nom"]])
                 item_produit.setCheckState(0, Qt.CheckState.Unchecked)
-                item_produit.setData(0, Qt.ItemDataRole.UserRole, produit["coordonnées"])
+                item_produit.setData(0, Qt.ItemDataRole.UserRole, None)
                 item_categorie.addChild(item_produit)
             self.arbre.addTopLevelItem(item_categorie)
 
@@ -218,49 +260,54 @@ class FenetreAppli(QMainWindow):
             directory=sys.path[0],
             filter="Fichiers JSON (*.json)"
         )
+
         if chemin_json:
             with open(chemin_json, "r", encoding="utf-8") as f:
                 donnees = json.load(f)
 
-            # Modifie l'appli en fonction du contenu dans le fichier
             self.nom_projet_edit.setText(donnees.get("nom_projet", ""))
             self.auteur_edit.setText(donnees.get("auteur", ""))
-            
+
             date_str = donnees.get("date_creation", "")
             if date_str:
                 date = QDate.fromString(date_str, "dd/MM/yyyy")
                 if date.isValid():
                     self.date_creation_edit.setDate(date)
-            
+
             self.nom_magasin_edit.setText(donnees.get("nom_magasin", ""))
             self.adresse_magasin_edit.setText(donnees.get("adresse_magasin", ""))
 
-            # Charge le plan du magasin déja choisi précédemment
             chemin_image = donnees.get("chemin_image")
             if chemin_image and os.path.exists(chemin_image):
                 self.__chemin = chemin_image
-                self.affiche_image(taille_cellule=13) 
+                self.affiche_image(taille_cellule=13)
 
-            # Recharge les produits cochés
-            produits_sel = donnees.get("produits_selectionnes", {})
-
-            # Vide l'arbre avant de recharger (cas ou l'appli est déja ouvert)
+            # Rechage l'arbre en fonction des produits choisi avant
             self.arbre.clear()
             self.charger_produits()
 
-            # Permet de sélectionner les produits sauvegardés
+            # Appliquer les produits sauvegardés (cochés + coordonnées)
+            produits_sel = donnees.get("produits_selectionnes", {})
+
             for i in range(self.arbre.topLevelItemCount()):
                 categorie = self.arbre.topLevelItem(i)
                 cat_nom = categorie.text(0)
+
                 if cat_nom in produits_sel:
-                    produits_coche = produits_sel[cat_nom]
-                    noms_produits = {p["nom"] for p in produits_coche}
+                    liste_produits = produits_sel[cat_nom]
+
+                    dict_produits = {p["nom"]: p.get("coordonnees") for p in liste_produits}
+
                     for j in range(categorie.childCount()):
                         produit_item = categorie.child(j)
-                        if produit_item.text(0) in noms_produits:
+                        nom_produit = produit_item.text(0)
+
+                        if nom_produit in dict_produits:
                             produit_item.setCheckState(0, Qt.CheckState.Checked)
+                            produit_item.setData(0, Qt.ItemDataRole.UserRole, dict_produits[nom_produit])
 
             self.barre_etat.showMessage(f"Projet chargé depuis {chemin_json}", 3000)
+
 
 
     def enregistrer(self):
@@ -315,12 +362,12 @@ class FenetreAppli(QMainWindow):
 
 
     def affiche_image(self, taille_cellule=10):
-        self.image = Image(self.__chemin, taille_cellule=taille_cellule)
+        self.image = Image(self.__chemin, self, taille_cellule=taille_cellule)
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
-        
-        self.dock.setVisible(True)  # Afficher le dock lorsque l'image est chargée
+        self.dock.setVisible(True)
         self.charger_produits()
+
 
     def ouvrir_plan(self):
         fichier, _ = QFileDialog.getOpenFileName(
