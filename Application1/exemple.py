@@ -1,6 +1,7 @@
 import sys
+import json
 from PyQt6.QtWidgets import QApplication, QMainWindow, QToolBar, QStatusBar, \
-                            QLabel, QTextEdit, QFileDialog, QDockWidget, QWidget, QLineEdit, QFormLayout, QDateEdit
+                            QLabel, QTextEdit, QFileDialog, QDockWidget, QWidget, QLineEdit, QFormLayout, QDateEdit, QTreeWidgetItem, QTreeWidget, QPushButton, QVBoxLayout
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter
 from PyQt6.QtCore import Qt, QDate
 
@@ -103,7 +104,29 @@ class FenetreAppli(QMainWindow):
         self.form_layout.addRow('Adresse du Magasin :', self.adresse_magasin_edit)
 
         self.form_widget.setLayout(self.form_layout)
-        self.dock.setWidget(self.form_widget)
+
+        self.recherche_input = QLineEdit()
+        self.recherche_input.setPlaceholderText("Rechercher un produit...")
+        bouton_recherche = QPushButton("Rechercher")
+        bouton_recherche.clicked.connect(self.rechercher_produit)
+
+        bouton_exporter = QPushButton("Exporter")
+        bouton_exporter.clicked.connect(self.exporter_produits)
+
+        self.arbre = QTreeWidget()
+        self.arbre.setHeaderLabels(["Catégories et Produits"])
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.form_widget)
+        layout.addWidget(self.recherche_input)
+        layout.addWidget(bouton_recherche)
+        layout.addWidget(self.arbre)
+        layout.addWidget(bouton_exporter)
+
+        container = QWidget()
+        container.setLayout(layout)
+        self.dock.setWidget(container)
+
 
         # barre d'état
         self.barre_etat = QStatusBar()
@@ -134,6 +157,77 @@ class FenetreAppli(QMainWindow):
 
         self.showMaximized()
 
+    def charger_produits(self):
+        chemin_fichier = "C:/Users/Utilisateur.G650-09/Documents/BUT1/Semestre2/SAE_AlgoGraphe/SAE_AlgoGraphe/Application1/liste_produit.json"
+        with open(chemin_fichier, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        for categorie, produits in data.items():
+            
+            # Permet de faire un genre de sous menu
+            item_categorie = QTreeWidgetItem([categorie])
+            for produit in produits:
+                item_produit = QTreeWidgetItem([produit["nom"]])
+                item_produit.setCheckState(0, Qt.CheckState.Unchecked)
+                item_produit.setData(0, Qt.ItemDataRole.UserRole, produit["coordonnées"])
+                item_categorie.addChild(item_produit)
+            self.arbre.addTopLevelItem(item_categorie)
+
+
+    def rechercher_produit(self):
+        terme = self.recherche_input.text().strip().lower()
+        # N'ouvre pas de menus si il n'y a rien
+        if not terme:
+            return
+        
+        #Utilisation d'internet 
+        for i in range(self.arbre.topLevelItemCount()):
+            categorie = self.arbre.topLevelItem(i)
+            for j in range(categorie.childCount()):
+                produit = categorie.child(j)
+                if terme in produit.text(0).lower():
+                    self.arbre.scrollToItem(produit)
+                    produit.setSelected(True)
+                    categorie.setExpanded(True)
+                else:
+                    produit.setSelected(False)
+
+    def exporter_produits(self):
+        produits_selectionnes = {}
+
+        # Parcours de chaque catégorie de l'arbre
+        for i in range(self.arbre.topLevelItemCount()):
+            categorie = self.arbre.topLevelItem(i)
+            produits = []
+            for j in range(categorie.childCount()):
+                produit_item = categorie.child(j)
+                if produit_item.checkState(0) == Qt.CheckState.Checked:
+                    produit = {
+                        "nom": produit_item.text(0),
+                        "coordonnées": produit_item.data(0, Qt.ItemDataRole.UserRole)
+                    }
+                    produits.append(produit)
+            if produits:
+                produits_selectionnes[categorie.text(0)] = produits
+
+        if produits_selectionnes:
+            nom_magasin = self.nom_magasin_edit.text().strip()
+            
+            # Cas ou il n'y a pas de nom de magasin
+            if not nom_magasin:
+                nom_magasin = "magasin"
+            nom_fichier = f"{nom_magasin}.json"
+
+            with open(nom_fichier, 'w', encoding='utf-8') as f:
+                json.dump(produits_selectionnes, f, ensure_ascii=False, indent=4)
+
+            self.barre_etat.showMessage(f"Produits exportés dans {nom_fichier}", 5000)
+        else:
+            self.barre_etat.showMessage("Aucun produit sélectionné pour l'exportation", 5000)
+
+
+        
+
     def nouveau(self):
         self.barre_etat.showMessage('Créer un nouveau ....', 2000)
         boite = QFileDialog()
@@ -161,6 +255,7 @@ class FenetreAppli(QMainWindow):
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
         self.dock.setVisible(True)  # Afficher le dock lorsque l'image est chargée
+        self.charger_produits()
 
     def ouvrir_plan(self):
         """Permet de choisir parmi les fichiers un plan de magasin"""
