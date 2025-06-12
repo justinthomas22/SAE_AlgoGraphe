@@ -208,7 +208,7 @@ class FenetreAppli(QMainWindow):
 
 
     def charger_produits(self):
-        chemin_fichier = "C:/Users/Utilisateur.G650-09/Documents/BUT1/Semestre2/SAE_AlgoGraphe/SAE_AlgoGraphe/Application1/liste_produit.json"
+        chemin_fichier = os.path.join(os.path.dirname(__file__), 'liste_produit.json')
         with open(chemin_fichier, "r", encoding="utf-8") as f:
             data = json.load(f)
 
@@ -273,7 +273,7 @@ class FenetreAppli(QMainWindow):
                 nom_magasin = "magasin"
             nom_fichier = f"{nom_magasin}_liste_produits.json"
 
-            dossier = "listes_produits_entreprise"
+            dossier = os.path.join(os.path.dirname(__file__), 'listes_produits_entreprise')
 
             # Permet de mettre le json dans un fichier (lien avec app2)
             chemin_complet = os.path.join(dossier, nom_fichier)
@@ -357,7 +357,7 @@ class FenetreAppli(QMainWindow):
             self,
             "Enregistrer le projet",
             directory=sys.path[0],
-            filter="Fichiers ODT (*.odt);;Fichiers PDF (*.pdf)"
+            filter="Fichiers JSON (*.json)"
         )
         if not chemin:
             return
@@ -424,12 +424,6 @@ class FenetreAppli(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    try:
-        with open(sys.path[0] + "/fichiers_qss/Diffnes.qss", 'r') as fichier_style:
-            qss = fichier_style.read()
-            app.setStyleSheet(qss)
-    except:
-        pass
 
     fenetre = FenetreAppli()
     sys.exit(app.exec())

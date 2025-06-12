@@ -1,0 +1,25 @@
+{
+    "Hygiène": [
+        {
+            "nom": "Après rasage",
+            "coordonnées": [
+                73,
+                41
+            ]
+        },
+        {
+            "nom": "Brosse à dents",
+            "coordonnées": [
+                68,
+                41
+            ]
+        },
+        {
+            "nom": "Cire épilation",
+            "coordonnées": [
+                72,
+                41
+            ]
+        }
+    ]
+}
