@@ -14,6 +14,11 @@ from odf.opendocument import OpenDocumentText
 from odf.text import H, P
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+import json
+from PyQt6.QtWidgets import QApplication, QMainWindow, QToolBar, QStatusBar, \
+                            QLabel, QTextEdit, QFileDialog, QDockWidget, QWidget, QLineEdit, QFormLayout, QDateEdit
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter
+from PyQt6.QtCore import Qt, QDate
 
 class Image(QLabel):
     def __init__(self, chemin: str, parent, taille_cellule: int = 10):
