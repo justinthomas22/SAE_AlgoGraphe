@@ -11,18 +11,62 @@ from PyQt6.QtCore import Qt
 
 
 class Image(QLabel):
-    def __init__(self, chemin: str):
+    def __init__(self, chemin: str, taille_cellule: int = 10):
         super().__init__()
+        self.taille_cellule = taille_cellule
         self.image = QPixmap(chemin)
+        
+        # Redimensionnement avec la même logique que l'App1
         ecran = QApplication.primaryScreen().availableGeometry()
         largeur_max = int(ecran.width() * 0.8)
         hauteur_max = int(ecran.height() * 0.8)
-        image_redim = self.image.scaled(
+
+        self.image_redim = self.image.scaled(
             largeur_max, hauteur_max,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation
         )
-        self.setPixmap(image_redim)
+        
+        print("Image redimensionnée en:", self.image_redim.size())
+
+        self.produits = []
+        self.setPixmap(self.image_redim)
+        self.setFixedSize(self.image_redim.size())
+
+    def set_produits(self, coordonnees):
+        self.produits = coordonnees
+        self.repaint()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self.produits:
+            return
+            
+        painter = QPainter(self)
+        painter.setPen(Qt.GlobalColor.red)
+        painter.setBrush(Qt.GlobalColor.red)
+
+        # Taille du carré rouge
+        size = 15
+        
+        # Décalage comme dans l'App1
+        decalage = 7
+
+        for coord in self.produits:
+            if not coord or len(coord) < 2:
+                continue
+                
+            grid_x, grid_y = coord
+            
+            # Conversion des coordonnées de grille en pixels (même logique que App1)
+            px = grid_x * self.taille_cellule + decalage - size // 2
+            py = grid_y * self.taille_cellule - size // 2
+            
+            # Vérifier que les coordonnées sont dans les limites de l'image
+            if 0 <= px < self.image_redim.width() and 0 <= py < self.image_redim.height():
+                painter.drawRect(px, py, size, size)
+
+        painter.end()
 
 
 class FenetreAppli(QMainWindow):
@@ -56,6 +100,20 @@ class FenetreAppli(QMainWindow):
         self.billet_liste = None
         self.showMaximized()
 
+    def mettre_a_jour_carre_rouge(self):
+        if not self.billet_liste:
+            return
+
+        coordonnees = []
+        items = self.billet_liste.selectedItems()
+        for item in items:
+            coord = item.data(0, Qt.ItemDataRole.UserRole)
+            if coord:
+                coordonnees.append(coord)
+
+        self.affiche_image(coordonnees if coordonnees else None)
+
+
     def ouvrir(self):
         boite = QFileDialog()
         chemin, validation = boite.getOpenFileName(directory=sys.path[0])
@@ -69,10 +127,22 @@ class FenetreAppli(QMainWindow):
         if validation:
             self.__chemin = chemin
 
-    def affiche_image(self):
-        self.image = Image(self.__chemin)
+    def affiche_image(self, coordonnees=None, taille_cellule=10):
+        """
+        Affiche le plan
+        """
+        self.image = Image(self.__chemin, taille_cellule=taille_cellule)
+        
+        if coordonnees:
+            self.image.set_produits(coordonnees)
+        else:
+            self.image.set_produits([])
+
+        # Centrer l'image dans la fenêtre
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
+
+
 
     def demander_nom_magasin(self):
         self.voile = QWidget(self)
@@ -184,6 +254,8 @@ class FenetreAppli(QMainWindow):
         layout_billet = QVBoxLayout(widget_billet)
 
         self.billet_liste = QTreeWidget()
+        self.billet_liste.itemSelectionChanged.connect(self.mettre_a_jour_carre_rouge)
+
         self.billet_liste.setHeaderLabels(["Produit", "Supprimer"])
         layout_billet.addWidget(self.billet_liste)
 
@@ -217,6 +289,10 @@ class FenetreAppli(QMainWindow):
                 if produit.checkState(0) == Qt.CheckState.Checked:
                     item = QTreeWidgetItem(self.billet_liste)
                     item.setText(0, produit.text(0))
+                    
+                    # Stocker la coordonnée dans l'item de la liste de courses
+                    coord = produit.data(0, Qt.ItemDataRole.UserRole)
+                    item.setData(0, Qt.ItemDataRole.UserRole, coord)
 
                     bouton_supprimer = QPushButton("Supprimer")
                     bouton_supprimer.clicked.connect(lambda _, i=item: self.supprimer_produit(i))
@@ -224,7 +300,8 @@ class FenetreAppli(QMainWindow):
 
                     produit.setCheckState(0, Qt.CheckState.Unchecked)
 
-        self.affiche_image()
+        self.mettre_a_jour_carre_rouge()
+
 
     def supprimer_produit(self, item):
         index = self.billet_liste.indexOfTopLevelItem(item)
