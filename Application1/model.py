@@ -1,12 +1,9 @@
-import os
+import os 
 import json
-import sys
-from PyQt6.QtWidgets import QApplication
-from controller import MagasinController
-
 
 class MagasinModel:
     def __init__(self):
+        #Définition des zones pour chaque catégorie de produits
         self.zones_autorisees = {
             "Légumes": [((19, 8), (19, 28)), ((23, 8), (25, 16))],       
             "Poissons": [((2, 6), (3, 6)), ((3, 5), (4, 5)), ((4, 4), (5, 4)), ((5, 3), (6, 3)), ((6, 2), (7, 2))],
@@ -34,34 +31,39 @@ class MagasinModel:
             "adresse_magasin": "",
             "chemin_image": ""
         }
-
-    def charger_produits_depuis_json(self):
+    
+    #Permet de charger la liste de produits depuis un fichier JSON
+    def charger_produits_depuis_json(self): 
         chemin_fichier = os.path.join(os.path.dirname(__file__), 'liste_produit.json')
         with open(chemin_fichier, "r", encoding="utf-8") as f:
             self.produits_data = json.load(f)
         return self.produits_data
 
+    #Permet de vérifier si les données sont dans une zone autorisée lorsqu'on clique
     def est_dans_zone_autorisee(self, categorie: str, coord: tuple) -> bool:
         zones = self.zones_autorisees.get(categorie, [])
         for (x1, y1), (x2, y2) in zones:
             if x1 <= coord[0] <= x2 and y1 <= coord[1] <= y2:
                 return True
         return False
-
+    
+    #Permet de sauvegarder le projet dans un fichier JSON
     def sauvegarder_projet(self, chemin, produits_selectionnes):
         donnees = self.projet_info.copy()
         donnees["produits_selectionnes"] = produits_selectionnes
         
         with open(chemin, "w", encoding="utf-8") as f:
             json.dump(donnees, f, ensure_ascii=False, indent=4)
-
+    
+    #Permet de charger un projet depuis un fichier JSON
     def charger_projet(self, chemin):
         with open(chemin, "r", encoding="utf-8") as f:
             donnees = json.load(f)
         
         self.projet_info.update(donnees)
         return donnees
-
+    
+    #Permet d'esxporter les produits sélectionnés dans un fichier JSON
     def exporter_produits_selectionnes(self, produits_selectionnes, nom_magasin):
         if not nom_magasin:
             nom_magasin = "magasin"
@@ -77,12 +79,3 @@ class MagasinModel:
         
         return nom_fichier
     
-    
-    def main():
-        app = QApplication(sys.argv)
-        controller = MagasinController()
-        fenetre = controller.run()
-        sys.exit(app.exec())
-
-    if __name__ == "__main__":
-        main()
