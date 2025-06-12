@@ -7,6 +7,7 @@ from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor
 from PyQt6.QtCore import Qt, QDate, QRect
 from PyQt6.QtWidgets import QApplication
 
+# Classe d'affichage d'image 
 class ImageView(QLabel):
     def __init__(self, chemin: str, controller, taille_cellule: int = 10):
         super().__init__()
@@ -14,6 +15,7 @@ class ImageView(QLabel):
         self.chemin = chemin
         self.taille_cellule = taille_cellule
 
+        # Permet de charger et redimensionner de l’image pour qu'elle s’adapte à l’écran
         self.image = QPixmap(self.chemin)
         ecran = QApplication.primaryScreen().availableGeometry()
         largeur_max = int(ecran.width() * 0.8)
@@ -27,7 +29,8 @@ class ImageView(QLabel):
 
         self.setPixmap(self.image_redim)
         self.setFixedSize(self.image_redim.size())
-
+    
+    # Permet de mettre les zones autorisées (grilles) en surbrillance
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
@@ -40,7 +43,8 @@ class ImageView(QLabel):
             painter.drawLine(x, 0, x, hauteur)
         for y in range(0, hauteur, self.taille_cellule):
             painter.drawLine(0, y, largeur, y)
-
+            
+        # Récupère de la catégorie sélectionnée pour afficher les zones qui lui sont associées
         categorie = self.controller.get_categorie_selectionnee()
         if categorie:
             zones = self.controller.model.zones_autorisees.get(categorie, [])
@@ -62,6 +66,7 @@ class ImageView(QLabel):
         grid_y = int(y) // self.taille_cellule
         self.controller.attribuer_position_produit((grid_x, grid_y))
 
+#Vue principale de l'application
 class MainView(QMainWindow):
     def __init__(self, controller):
         super().__init__()
@@ -89,6 +94,7 @@ class MainView(QMainWindow):
         self.form_widget = QWidget()
         self.form_layout = QFormLayout()
 
+        # Champs du formulaire
         self.nom_projet_edit = QLineEdit()
         self.auteur_edit = QLineEdit()
         self.date_creation_edit = QDateEdit()
@@ -96,6 +102,7 @@ class MainView(QMainWindow):
         self.nom_magasin_edit = QLineEdit()
         self.adresse_magasin_edit = QLineEdit()
 
+        # Ajout des champs au formulaire 
         self.form_layout.addRow('Nom du Projet :', self.nom_projet_edit)
         self.form_layout.addRow('Auteur :', self.auteur_edit)
         self.form_layout.addRow('Date de Création :', self.date_creation_edit)
@@ -104,14 +111,17 @@ class MainView(QMainWindow):
 
         self.form_widget.setLayout(self.form_layout)
 
+        #Zone de recherche
         self.recherche_input = QLineEdit()
         self.recherche_input.setPlaceholderText("Rechercher un produit...")
         bouton_recherche = QPushButton("Rechercher")
         bouton_recherche.clicked.connect(self.controller.rechercher_produit)
 
+        #Bouton exporter
         bouton_exporter = QPushButton("Exporter")
         bouton_exporter.clicked.connect(self.controller.exporter_produits)
 
+        #Arbre des catégories/produits
         self.arbre = QTreeWidget()
         self.arbre.itemSelectionChanged.connect(self.controller.mis_a_jour_selection)
         self.arbre.setHeaderLabels(["Catégories et Produits"])
@@ -150,7 +160,8 @@ class MainView(QMainWindow):
     def afficher_message_status(self, message, duree=3000):
         self.barre_etat.showMessage(message, duree)
 
-    def get_projet_info(self):
+    # Extraction des données du formulaire projet
+    def donnees_projet(self):
         return {
             "nom_projet": self.nom_projet_edit.text(),
             "auteur": self.auteur_edit.text(),
@@ -159,7 +170,8 @@ class MainView(QMainWindow):
             "adresse_magasin": self.adresse_magasin_edit.text()
         }
 
-    def set_projet_info(self, info):
+    # Chargement des données dans le formulaire projet
+    def changer_donnees_projet(self, info):
         self.nom_projet_edit.setText(info.get("nom_projet", ""))
         self.auteur_edit.setText(info.get("auteur", ""))
         
