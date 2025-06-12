@@ -126,6 +126,7 @@ class Image(QLabel):
                 # Vérifier que les coordonnées sont dans les limites de l'image
                 if 0 <= px < self.image_redim.width() and 0 <= py < self.image_redim.height():
                     painter.drawRect(px, py, size, size)
+
         
         painter.end()
     
@@ -154,6 +155,32 @@ class Chemin:
         
         self.entree = (62, 58)  # Position de l'entrée
         self.caisse = (35, 56)  # Position de la caisse
+
+    def trouver_case_accessible_autour(self, x: int, y: int) -> Tuple[int, int] | None:
+        from collections import deque
+        visited = set()
+        queue = deque()
+        queue.append((x, y, 0))
+        visited.add((x, y))
+        max_distance = 3 
+
+        while queue:
+            cx, cy, dist = queue.popleft()
+            # On saute la case de départ (bloquée)
+            if dist > 0 and self.est_position_valide(cx, cy):
+                return (cx, cy)
+            if dist >= max_distance:
+                continue
+            # Explore toutes les cases autour (dans les 8 directions)
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    if dx == 0 and dy == 0:
+                        continue
+                    nx, ny = cx + dx, cy + dy
+                    if (nx, ny) not in visited and 0 <= nx < self.grille_largeur and 0 <= ny < self.grille_hauteur:
+                        visited.add((nx, ny))
+                        queue.append((nx, ny, dist + 1))
+        return None
     
     def _definir_zones_bloquees(self):
         """Définit les zones qui ne peuvent pas être traversées"""
@@ -199,7 +226,7 @@ class Chemin:
             ((23, 22), (25, 28)),
 
             ((25, 33), (26, 41)),
-            ((25, 44), (26, 41)),
+            ((25, 44), (26, 51)),
             ((29, 8), (31, 28)),
             ((29, 33), (30, 41)),
             ((29, 44), (30, 51)),
@@ -231,7 +258,19 @@ class Chemin:
             ((3, 5), (4, 5)), 
             ((4, 4), (5, 4)), 
             ((5, 3), (6, 3)), 
-            ((6, 2), (7, 2))
+            ((6, 2), (7, 2)),
+
+            # Zones spéciale (caisses)
+            ((21, 55), (34, 59)),
+            ((38, 55), (59, 59)),
+
+            # Zones spéciale (rond bleu)
+            ((46, 46), (46, 46)),
+            ((48, 44), (49, 45)),
+            ((46, 43), (46, 43)),
+            ((51, 43), (51, 43)),
+            ((51, 46), (51, 46)),
+
         ]
         
         # Ajouter tous les points des rayons aux zones bloquées
@@ -239,7 +278,7 @@ class Chemin:
             for x in range(min(x1, x2), max(x1, x2) + 1):
                 for y in range(min(y1, y2), max(y1, y2) + 1):
                     if 0 <= x < self.grille_largeur and 0 <= y < self.grille_hauteur:
-                        self.zones_bloquees.add((x, y))
+                        self.zones_bloquees.add((x - 1, y))
     
     #Verifie qu'une position est valide
     def est_position_valide(self, x: int, y: int) -> bool:
@@ -252,7 +291,7 @@ class Chemin:
         voisins = []
         directions = [
             (-1, 0, 1.0),   # Gauche
-            (1, 0, 1.0),    # Droite  
+            (1, 0, 1.0),    # Droite
             (0, -1, 1.0),   # Haut
             (0, 1, 1.0),    # Bas
             (-1, -1, 1.4),  # Diagonale haut-gauche
@@ -260,52 +299,45 @@ class Chemin:
             (-1, 1, 1.4),   # Diagonale bas-gauche
             (1, 1, 1.4),    # Diagonale bas-droite
         ]
-        
+
         for dx, dy, cout in directions:
             nx, ny = x + dx, y + dy
             if self.est_position_valide(nx, ny):
                 voisins.append((nx, ny, cout))
-        
+
         return voisins
+
     
     # Algo de Dijkstra -> Détermine chemin le plus court
     def dijkstra(self, debut: Tuple[int, int], fin: Tuple[int, int]) -> Tuple[List[Tuple[int, int]], float]:
-        # File de priorité : (distance, x, y)
         file_priorite = [(0, debut[0], debut[1])]
-        
-        # Distances minimales
         distances = {debut: 0}
-        
-        # Prédécesseurs pour reconstruire le chemin
         predecesseurs = {}
-        
-        # Ensemble des nœuds visités
         visites = set()
-        
+
         while file_priorite:
             dist_actuelle, x, y = heapq.heappop(file_priorite)
-            
+
             if (x, y) in visites:
                 continue
-                
+
             visites.add((x, y))
-        
+
             if (x, y) == fin:
                 break
-        
+
             for nx, ny, cout in self.obtenir_voisins(x, y):
                 if (nx, ny) not in visites:
                     nouvelle_distance = dist_actuelle + cout
-                    
+
                     if (nx, ny) not in distances or nouvelle_distance < distances[(nx, ny)]:
                         distances[(nx, ny)] = nouvelle_distance
                         predecesseurs[(nx, ny)] = (x, y)
                         heapq.heappush(file_priorite, (nouvelle_distance, nx, ny))
-        
+
         if fin not in predecesseurs and fin != debut:
-            # Cas ou aucun chemin trouvé
-            return [], float('inf')  
-        
+            return [], float('inf')
+
         chemin = []
         actuel = fin
         while actuel is not None:
@@ -313,8 +345,9 @@ class Chemin:
             actuel = predecesseurs.get(actuel)
         chemin.reverse()
         distance_totale = distances.get(fin, float('inf'))
-        
+
         return chemin, distance_totale
+
     
 
     # Calcul du chemin le meilleur
@@ -322,8 +355,21 @@ class Chemin:
         if not positions_produits:
             return [], 0
         
-        points_a_visiter = [self.entree] + positions_produits + [self.caisse]
-        if len(points_a_visiter) <= 3:  # entrée + produit + caisse
+        points_a_visiter = [self.entree]
+
+        points_a_visiter = [self.entree]
+
+        for x, y in positions_produits:
+            if not self.est_position_valide(x, y):
+                voisin = self.trouver_case_accessible_autour(x, y)
+                if voisin:
+                    points_a_visiter.append(voisin)
+            else:
+                points_a_visiter.append((x, y))
+
+        points_a_visiter.append(self.caisse)
+
+        if len(points_a_visiter) <= 3: 
             chemin_complet = []
             distance_totale = 0
             for i in range(len(points_a_visiter) - 1):
@@ -418,6 +464,7 @@ class FenetreAppli(QMainWindow):
         self.billet_liste = None
         self.image = None
         self.showMaximized()
+
 
     # Affiche tous les produits et calcule la meilleure distance
     def afficher_tous_les_produits(self):
