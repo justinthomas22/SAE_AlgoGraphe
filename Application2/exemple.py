@@ -70,42 +70,7 @@ class FenetreAppli(QMainWindow):
             self.__chemin = chemin
 
     def affiche_image(self):
-        base_image = QPixmap(self.__chemin)
-        ecran = QApplication.primaryScreen().availableGeometry()
-        largeur_max = int(ecran.width() * 0.8)
-        hauteur_max = int(ecran.height() * 0.8)
-
-        image_redim = base_image.scaled(
-            largeur_max, hauteur_max,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
-
-        image_dessinable = QPixmap(image_redim)
-        painter = QPainter(image_dessinable)
-        painter.setPen(Qt.GlobalColor.red)
-        painter.setBrush(Qt.GlobalColor.red)
-
-        # Dessine un carré rouge pour chaque produit dans la liste de course
-        if self.billet_liste:
-            for i in range(self.billet_liste.topLevelItemCount()):
-                item = self.billet_liste.topLevelItem(i)
-                nom_produit = item.text(0).strip().lower()
-                # Cherche coordonnées dans l'arbre des produits
-                for j in range(self.arbre.topLevelItemCount()):
-                    categorie = self.arbre.topLevelItem(j)
-                    for k in range(categorie.childCount()):
-                        produit = categorie.child(k)
-                        if produit.text(0).strip().lower() == nom_produit:
-                            coords = produit.data(0, Qt.ItemDataRole.UserRole)
-                            if coords:
-                                x = int(coords[0] / 100 * image_redim.width())
-                                y = int(coords[1] / 100 * image_redim.height())
-                                taille = 10
-                                painter.drawRect(x - taille//2, y - taille//2, taille, taille)
-
-        painter.end()
-        self.image.setPixmap(image_dessinable)
+        self.image = Image(self.__chemin)
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
 
@@ -178,7 +143,7 @@ class FenetreAppli(QMainWindow):
                 item_categorie.addChild(item_produit)
             self.arbre.addTopLevelItem(item_categorie)
 
-        self.__chemin = "images/plan.jpg"
+        self.__chemin = os.path.join(os.path.dirname(__file__), "images", "plan.jpg")
         self.affiche_image()
 
     def creer_dock_liste(self):
@@ -200,7 +165,7 @@ class FenetreAppli(QMainWindow):
         layout.addWidget(bouton_ajouter)
 
         self.arbre = QTreeWidget()
-        self.arbre.setHeaderLabels(["Catégories et Produits", "Coordonnée"])
+        self.arbre.setHeaderLabels(["Catégories et Produits"])
         layout.addWidget(self.arbre)
 
         self.dock.setWidget(widget_contenu)
