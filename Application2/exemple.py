@@ -1,11 +1,12 @@
 import sys
+import os
 import json
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar,
     QLabel, QFileDialog, QDockWidget, QTreeWidget, QTreeWidgetItem,
     QLineEdit, QPushButton, QVBoxLayout, QWidget, QMessageBox
 )
-from PyQt6.QtGui import QIcon, QAction, QPixmap
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter
 from PyQt6.QtCore import Qt
 
 
@@ -69,7 +70,42 @@ class FenetreAppli(QMainWindow):
             self.__chemin = chemin
 
     def affiche_image(self):
-        self.image = Image(self.__chemin)
+        base_image = QPixmap(self.__chemin)
+        ecran = QApplication.primaryScreen().availableGeometry()
+        largeur_max = int(ecran.width() * 0.8)
+        hauteur_max = int(ecran.height() * 0.8)
+
+        image_redim = base_image.scaled(
+            largeur_max, hauteur_max,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
+        image_dessinable = QPixmap(image_redim)
+        painter = QPainter(image_dessinable)
+        painter.setPen(Qt.GlobalColor.red)
+        painter.setBrush(Qt.GlobalColor.red)
+
+        # Dessine un carré rouge pour chaque produit dans la liste de course
+        if self.billet_liste:
+            for i in range(self.billet_liste.topLevelItemCount()):
+                item = self.billet_liste.topLevelItem(i)
+                nom_produit = item.text(0).strip().lower()
+                # Cherche coordonnées dans l'arbre des produits
+                for j in range(self.arbre.topLevelItemCount()):
+                    categorie = self.arbre.topLevelItem(j)
+                    for k in range(categorie.childCount()):
+                        produit = categorie.child(k)
+                        if produit.text(0).strip().lower() == nom_produit:
+                            coords = produit.data(0, Qt.ItemDataRole.UserRole)
+                            if coords:
+                                x = int(coords[0] / 100 * image_redim.width())
+                                y = int(coords[1] / 100 * image_redim.height())
+                                taille = 10
+                                painter.drawRect(x - taille//2, y - taille//2, taille, taille)
+
+        painter.end()
+        self.image.setPixmap(image_dessinable)
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(self.image)
 
@@ -113,7 +149,7 @@ class FenetreAppli(QMainWindow):
             return
 
         fichier = f"{nom_magasin.strip()}_liste_produits.json"
-        chemin_complet = f"../Application1/listes_produits_entreprise/{fichier}"
+        chemin_complet = os.path.join(os.path.dirname(__file__), "..", "Application1", "listes_produits_entreprise", f"{fichier}")
 
         try:
             with open(chemin_complet, "r", encoding="utf-8") as f:
@@ -136,7 +172,8 @@ class FenetreAppli(QMainWindow):
         for categorie, produits in data.items():
             item_categorie = QTreeWidgetItem([categorie])
             for produit in produits:
-                item_produit = QTreeWidgetItem([produit])
+                item_produit = QTreeWidgetItem([produit["nom"]])
+                item_produit.setData(0, Qt.ItemDataRole.UserRole, produit.get("coordonnées"))
                 item_produit.setCheckState(0, Qt.CheckState.Unchecked)
                 item_categorie.addChild(item_produit)
             self.arbre.addTopLevelItem(item_categorie)
@@ -163,7 +200,7 @@ class FenetreAppli(QMainWindow):
         layout.addWidget(bouton_ajouter)
 
         self.arbre = QTreeWidget()
-        self.arbre.setHeaderLabels(["Catégories et Produits"])
+        self.arbre.setHeaderLabels(["Catégories et Produits", "Coordonnée"])
         layout.addWidget(self.arbre)
 
         self.dock.setWidget(widget_contenu)
@@ -222,11 +259,20 @@ class FenetreAppli(QMainWindow):
 
                     produit.setCheckState(0, Qt.CheckState.Unchecked)
 
+        self.affiche_image()
+
     def supprimer_produit(self, item):
-        self.billet_liste.takeTopLevelItem(self.billet_liste.indexOfTopLevelItem(item))
+        index = self.billet_liste.indexOfTopLevelItem(item)
+        if index >= 0:
+            self.billet_liste.takeTopLevelItem(index)
+        self.affiche_image()
+
+    def destroy(self):
+        QApplication.quit()
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     fenetre = FenetreAppli()
+    fenetre.show()
     sys.exit(app.exec())
