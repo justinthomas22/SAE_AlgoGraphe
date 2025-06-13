@@ -2,6 +2,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 from controller import MagasinController
 
+#Fonction principale 
 def main():
     app = QApplication(sys.argv)
     controller = MagasinController()
