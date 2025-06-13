@@ -48,7 +48,7 @@ class ImageView(QLabel):
         categorie = self.controller.get_categorie_selectionnee()
         if categorie:
             zones = self.controller.model.zones_autorisees.get(categorie, [])
-            painter.setBrush(QColor(255, 255, 0, 80))  
+            painter.setBrush(QColor(0, 0, 0, 100))  
             
             for (x1, y1), (x2, y2) in zones:
                 rectangle = QRect(
