@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from model import MagasinModel
 from view import MainView, ImageView
 
+# Contrôleur principal de l'application Magasin fait le lien entre le modèle et la vue.
 class MagasinController:
     def __init__(self):
         self.model = MagasinModel()
@@ -12,9 +13,11 @@ class MagasinController:
         self.categorie_selectionnee = None
         self.chemin_image = None
 
+    # Retourne la catégorie qui est actuellement sélectionnée dans l'arbre
     def get_categorie_selectionnee(self):
         return self.categorie_selectionnee
 
+    # Permet de mettre à jour la catégorie sélectionnée quand l'utilisateur clique dans l'arbre.
     def mis_a_jour_selection(self):
         item = self.view.arbre.currentItem()
         if item:
@@ -27,7 +30,8 @@ class MagasinController:
         
         if self.image_view:
             self.image_view.update()
-
+    
+    # Attribue une position à un produit sélectionné dans l'arbre.                     
     def attribuer_position_produit(self, coordonnees):
         item = self.view.arbre.currentItem()
         if item and item.parent():
@@ -39,7 +43,8 @@ class MagasinController:
                 self.view.afficher_message_status(f"Zone invalide pour la catégorie {categorie}, {coordonnees}", 4000)
         else:
             self.view.afficher_message_status("Veuillez sélectionner un produit pour lui assigner une position", 3000)
-
+    
+    #Permet de charger les produits depuis le JSON et les affiche dans l'arbre de la vue
     def charger_produits_dans_arbre(self):
         data = self.model.charger_produits_depuis_json()
         for categorie, produits in data.items():
@@ -51,6 +56,7 @@ class MagasinController:
                 item_categorie.addChild(item_produit)
             self.view.arbre.addTopLevelItem(item_categorie)
 
+    # Recherche un produit dans l'arbre en fonction du texte que l'utilisateur saisit
     def rechercher_produit(self):
         terme = self.view.recherche_input.text().strip().lower()
         if not terme:
@@ -66,7 +72,8 @@ class MagasinController:
                     categorie.setExpanded(True)
                 else:
                     produit.setSelected(False)
-
+                    
+    #Exporte les produits sélectionnés dans un fichier JSON
     def exporter_produits(self):
         produits_selectionnes = {}
         
@@ -94,12 +101,14 @@ class MagasinController:
         else:
             self.view.afficher_message_status("Aucun produit sélectionné pour l'exportation", 5000)
 
+    # Ouvre une boîte de dialogue pour créer un nouveau projet
     def nouveau(self):
         self.view.afficher_message_status('Créer un nouveau ....', 2000)
         chemin, _ = QFileDialog.getOpenFileName(directory=os.path.dirname(__file__))
         if chemin:
             self.chemin_image = chemin
 
+    #Ouvre un projet existant à partir d'un fichier JSON.
     def ouvrir(self):
         self.view.afficher_message_status('Ouvrir un projet...', 2000)
         chemin_json, _ = QFileDialog.getOpenFileName(
@@ -111,7 +120,7 @@ class MagasinController:
 
         if chemin_json:
             donnees = self.model.charger_projet(chemin_json)
-            self.view.set_projet_info(donnees)
+            self.view.changer_donnees_projet(donnees) # Met à jour la vue avec les données du projet
 
             chemin_image = donnees.get("chemin_image")
             if chemin_image and os.path.exists(chemin_image):
@@ -121,11 +130,12 @@ class MagasinController:
             self.view.arbre.clear()
             self.charger_produits_dans_arbre()
 
-            produits_sel = donnees.get("produits_selectionnes", {})
+            produits_sel = donnees.get("produits_selectionnes", {}) # Permet d'appliquer les produits sélectionnés et leurs coordonnées sauvegardées
             self.appliquer_produits_sauvegardes(produits_sel)
             self.view.afficher_message_status(f"Projet chargé depuis {chemin_json}", 3000)
 
-    def appliquer_produits_sauvegardes(self, produits_sel):
+    # Parcourt l'arbre pour cocher les produits déjà sélectionnés et appliquer leurs coordonnées
+    def appliquer_produits_sauvegardes(self, produits_sel): 
         for i in range(self.view.arbre.topLevelItemCount()):
             categorie = self.view.arbre.topLevelItem(i)
             cat_nom = categorie.text(0)
@@ -142,6 +152,7 @@ class MagasinController:
                         produit_item.setCheckState(0, Qt.CheckState.Checked)
                         produit_item.setData(0, Qt.ItemDataRole.UserRole, dict_produits[nom_produit])
 
+    # Sauvegarde les données du projet dans un fichier JSON
     def enregistrer(self):
         self.view.afficher_message_status('Enregistrer....', 2000)
         chemin, _ = QFileDialog.getSaveFileName(
@@ -153,15 +164,20 @@ class MagasinController:
         if not chemin:
             return
 
-        info_projet = self.view.get_projet_info()
+        # Récupère les informations du projet depuis la vue
+        info_projet = self.view.donnees_projet()
         info_projet["chemin_image"] = self.chemin_image
         self.model.projet_info.update(info_projet)
 
+        # Récupère les produits sélectionnés et leurs positions
         produits_selectionnes = self.collecter_produits_selectionnes()
         chemin_json = os.path.splitext(chemin)[0] + ".json"
+        
+        # Sauvegarde le projet à travers le modèle
         self.model.sauvegarder_projet(chemin_json, produits_selectionnes)
         self.view.afficher_message_status(f"Données sauvegardées dans {chemin_json}", 3000)
 
+    # Parcourt l'arbre pour collecter les produits cochés et leurs coordonnées
     def collecter_produits_selectionnes(self):
         produits_selectionnes = {}
         for i in range(self.view.arbre.topLevelItemCount()):
@@ -186,6 +202,7 @@ class MagasinController:
         self.view.dock.setVisible(True)
         self.charger_produits_dans_arbre()
 
+    # Permet d'ouvrir une image de plan via la boîte de dialogue et l'affiche
     def ouvrir_plan(self):
         fichier, _ = QFileDialog.getOpenFileName(
             self.view,
@@ -197,6 +214,7 @@ class MagasinController:
             self.chemin_image = fichier
             self.afficher_image(taille_cellule=10)
 
+    #Lance l'application
     def run(self):
         return self.view
         
