@@ -1,45 +1,38 @@
 {
     "Légumes": [
         {
-            "nom": "Ail",
+            "nom": "Avocat",
             "coordonnées": [
                 19,
-                8
-            ]
-        },
-        {
-            "nom": "Betterave",
-            "coordonnées": [
-                19,
-                28
+                10
             ]
         },
         {
             "nom": "Carotte",
             "coordonnées": [
                 23,
-                8
+                9
+            ]
+        },
+        {
+            "nom": "Chou",
+            "coordonnées": [
+                25,
+                13
             ]
         },
         {
             "nom": "Ciboulette",
             "coordonnées": [
-                25,
-                8
+                19,
+                12
             ]
         },
         {
-            "nom": "Courgette",
+            "nom": "Échalote",
             "coordonnées": [
-                25,
-                16
-            ]
-        },
-        {
-            "nom": "Épinards",
-            "coordonnées": [
-                23,
-                16
+                19,
+                24
             ]
         }
     ]
