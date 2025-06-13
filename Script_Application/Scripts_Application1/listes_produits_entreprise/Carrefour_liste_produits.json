@@ -1,0 +1,69 @@
+{
+    "Légumes": [
+        {
+            "nom": "Ail",
+            "coordonnées": [
+                19,
+                14
+            ]
+        },
+        {
+            "nom": "Aubergine",
+            "coordonnées": [
+                23,
+                16
+            ]
+        },
+        {
+            "nom": "Avocat",
+            "coordonnées": [
+                19,
+                28
+            ]
+        },
+        {
+            "nom": "Betterave",
+            "coordonnées": [
+                19,
+                10
+            ]
+        },
+        {
+            "nom": "Brocolis",
+            "coordonnées": [
+                19,
+                25
+            ]
+        }
+    ],
+    "Articles Maison": [
+        {
+            "nom": "Allume barbecue",
+            "coordonnées": [
+                84,
+                32
+            ]
+        },
+        {
+            "nom": "Allumettes",
+            "coordonnées": [
+                84,
+                37
+            ]
+        },
+        {
+            "nom": "Anticalcaire",
+            "coordonnées": [
+                84,
+                55
+            ]
+        },
+        {
+            "nom": "Assouplissant",
+            "coordonnées": [
+                84,
+                23
+            ]
+        }
+    ]
+}
